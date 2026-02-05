@@ -4,7 +4,7 @@ import {
   TouchableOpacity, Modal, ScrollView, ActivityIndicator, Alert
 } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Slider from '@react-native-community/slider'; // Make sure this is installed
+import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
@@ -21,12 +21,13 @@ export default function App() {
   const [activeDevice, setActiveDevice] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isAddModalVisible, setAddModalVisible] = useState(false);
-  const [isSensModalVisible, setSensModalVisible] = useState(false); // New modal state
+  const [isSensModalVisible, setSensModalVisible] = useState(false);
   
   const [newIp, setNewIp] = useState('');
   const [newPass, setNewPass] = useState(DEFAULT_PASS);
   const [status, setStatus] = useState('Offline');
   const [sensitivity, setSensitivity] = useState(1.5);
+  const [scrollSensitivity, setScrollSensitivity] = useState(0.5);
   const [keyboardValue, setKeyboardValue] = useState('');
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const [lastOffset, setLastOffset] = useState(0);
@@ -42,7 +43,9 @@ export default function App() {
   const loadData = async () => {
     const savedDevices = await AsyncStorage.getItem('devices');
     const savedSens = await AsyncStorage.getItem('sensitivity');
+    const savedScrollSens = await AsyncStorage.getItem('scrollSensitivity');
     if (savedSens) setSensitivity(parseFloat(savedSens));
+    if (savedScrollSens) setScrollSensitivity(parseFloat(savedScrollSens));
     if (savedDevices) {
       const parsed = JSON.parse(savedDevices);
       setDevices(parsed);
@@ -53,6 +56,11 @@ export default function App() {
   const saveSens = async (val) => {
     setSensitivity(val);
     await AsyncStorage.setItem('sensitivity', val.toString());
+  };
+
+  const saveScrollSens = async (val) => {
+    setScrollSensitivity(val);
+    await AsyncStorage.setItem('scrollSensitivity', val.toString());
   };
 
   const checkOnlineStatus = async (list) => {
@@ -77,7 +85,6 @@ export default function App() {
       const ipAddr = await Network.getIpAddressAsync();
       const subnet = ipAddr.substring(0, ipAddr.lastIndexOf('.'));
       const scanPromises = [];
-
       for (let i = 1; i < 255; i++) {
         const testIp = `${subnet}.${i}`;
         scanPromises.push(
@@ -86,9 +93,7 @@ export default function App() {
             .catch(() => null)
         );
       }
-
       const foundIps = (await Promise.all(scanPromises)).filter(ip => ip !== null);
-      
       if (foundIps.length > 0) {
         const newDevices = foundIps.map(ip => ({
           id: ip, name: 'Discovered PC', ip: ip, pass: DEFAULT_PASS, online: true
@@ -112,7 +117,6 @@ export default function App() {
     if (ws.current) ws.current.close();
     setActiveDevice(device);
     ws.current = new WebSocket(`ws://${device.ip}:${SERVER_PORT}/ws`);
-    
     ws.current.onopen = () => {
       setStatus('Connected');
       setCurrentScreen('control');
@@ -143,19 +147,39 @@ export default function App() {
     send({ type: 'key_up', key: 'command' });
   };
 
-  const trackpadGesture = Gesture.Race(
-    Gesture.Pan()
-      .minPointers(2)
-      .onChange((e) => {
-        send({ type: 'scroll', x: e.changeX * sensitivity, y: e.changeY * sensitivity });
-      }),
-    Gesture.Pan().onChange((e) => {
+  const moveGesture = Gesture.Pan()
+    .minPointers(1)
+    .maxPointers(1)
+    .onChange((e) => {
       send({ type: 'move', x: e.changeX * sensitivity, y: e.changeY * sensitivity });
-    }),
-    Gesture.Tap().onEnd(() => {
+    });
+
+  const scrollGesture = Gesture.Pan()
+    .minPointers(2)
+    .maxPointers(2)
+    .onChange((e) => {
+      send({ type: 'scroll', x: 0, y: e.changeY * scrollSensitivity });
+    });
+
+  const leftClickGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .minPointers(1)
+    .onEnd(() => {
       send({ type: 'click', button: 'left' });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    })
+    });
+
+  const rightClickGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .minPointers(2)
+    .onEnd(() => {
+      send({ type: 'click', button: 'right' });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    });
+
+  const trackpadGesture = Gesture.Simultaneous(
+    Gesture.Exclusive(moveGesture, leftClickGesture),
+    Gesture.Exclusive(scrollGesture, rightClickGesture)
   );
 
   const switcherGesture = Gesture.Pan()
@@ -202,7 +226,6 @@ export default function App() {
           ))}
         </ScrollView>
         <TouchableOpacity style={styles.fab} onPress={() => setAddModalVisible(true)}><Plus color="#fff" size={32} /></TouchableOpacity>
-        
         <Modal visible={isAddModalVisible} animationType="slide" transparent>
           <View style={styles.modalFull}><View style={styles.modalBox}>
             <Text style={styles.modalLabel}>IP ADDRESS</Text>
@@ -240,38 +263,20 @@ export default function App() {
             <TouchableOpacity onPress={() => setSensModalVisible(true)}><Settings color="#fff" size={24} /></TouchableOpacity>
           </View>
         </View>
-
-        {/* HIDDEN INPUT FOR KEYBOARD */}
         <TextInput ref={inputRef} style={styles.hiddenInput} value={keyboardValue} onChangeText={handleType} onKeyPress={(e) => {
           if(e.nativeEvent.key === 'Backspace') send({type:'tap', key:'backspace'});
           if(e.nativeEvent.key === 'Enter') send({type:'tap', key:'enter'});
         }} autoCorrect={false} autoCapitalize="none" />
-
-        {/* TRACKPAD */}
         <GestureDetector gesture={trackpadGesture}><View style={styles.touchpad}><Monitor color="#0a0a0a" size={120} /></View></GestureDetector>
-        
-        {/* ALT+TAB BAR */}
         <View style={styles.bottomPanel}><GestureDetector gesture={switcherGesture}><View style={[styles.switchBar, isSwitcherActive && styles.activeBar]}><Text style={styles.btnText}>ALT + TAB</Text></View></GestureDetector></View>
-
-        {/* QUICK SETTINGS MODAL (SENSITIVITY) */}
         <Modal visible={isSensModalVisible} animationType="fade" transparent>
           <View style={styles.modalFull}>
             <View style={styles.modalBox}>
               <Text style={styles.modalLabel}>MOUSE SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
-              <Slider
-                style={{ width: '100%', height: 50 }}
-                minimumValue={0.5}
-                maximumValue={5.0}
-                step={0.1}
-                value={sensitivity}
-                onValueChange={setSensitivity}
-                onSlidingComplete={saveSens}
-                minimumTrackTintColor="#007AFF"
-                thumbTintColor="#007AFF"
-              />
-              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%', marginTop: 20}]} onPress={() => setSensModalVisible(false)}>
-                <Text style={{color:'#fff', fontWeight:'bold'}}>Apply</Text>
-              </TouchableOpacity>
+              <Slider style={{ width: '100%', height: 50 }} minimumValue={0.5} maximumValue={5.0} step={0.1} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={saveSens} minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF" />
+              <Text style={[styles.modalLabel, {marginTop: 20}]}>SCROLL SENSITIVITY: {scrollSensitivity.toFixed(1)}x</Text>
+              <Slider style={{ width: '100%', height: 50 }} minimumValue={0.1} maximumValue={5.0} step={0.1} value={scrollSensitivity} onValueChange={setScrollSensitivity} onSlidingComplete={saveScrollSens} minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF" />
+              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%', marginTop: 20}]} onPress={() => setSensModalVisible(false)}><Text style={{color:'#fff', fontWeight:'bold'}}>Apply</Text></TouchableOpacity>
             </View>
           </View>
         </Modal>

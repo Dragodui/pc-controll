@@ -22,6 +22,7 @@ type Command struct {
 	Key   string  `json:"key"`
 	Value string  `json:"value"`
 	Token string  `json:"token"`
+	Button string `json:"button"`
 }
 
 var serverPassword string
@@ -85,7 +86,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		case "scroll":
 			robotgo.Scroll(int(cmd.X), int(cmd.Y))
 		case "click":
-			robotgo.Click("left", false)
+			robotgo.Click(cmd.Button, false)
 		case "type_string":
 			if cmd.Value != "" {
 				robotgo.Type(cmd.Value)
