@@ -82,6 +82,8 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		case "move":
 			curX, curY := robotgo.Location()
 			robotgo.Move(curX+int(cmd.X), curY+int(cmd.Y))
+		case "scroll":
+			robotgo.Scroll(int(cmd.X), int(cmd.Y))
 		case "click":
 			robotgo.Click("left", false)
 		case "type_string":

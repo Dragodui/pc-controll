@@ -143,7 +143,12 @@ export default function App() {
     send({ type: 'key_up', key: 'command' });
   };
 
-  const trackpadGesture = Gesture.Exclusive(
+  const trackpadGesture = Gesture.Race(
+    Gesture.Pan()
+      .minPointers(2)
+      .onChange((e) => {
+        send({ type: 'scroll', x: e.changeX * sensitivity, y: e.changeY * sensitivity });
+      }),
     Gesture.Pan().onChange((e) => {
       send({ type: 'move', x: e.changeX * sensitivity, y: e.changeY * sensitivity });
     }),
