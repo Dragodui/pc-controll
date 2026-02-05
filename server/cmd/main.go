@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-vgo/robotgo"
@@ -12,25 +15,24 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-// Command structure for incoming requests
 type Command struct {
-	Type   string  `json:"type"` // move, click, scroll, tap
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	Button string  `json:"button"` // left, right, center
-	Key    string  `json:"key"`
-	Value  string  `json:"value"`
+	Type  string  `json:"type"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	Key   string  `json:"key"`
+	Value string  `json:"value"`
+	Token string  `json:"token"`
 }
 
+var serverPassword string
+
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for local network access
+		return true
 	},
 }
 
-// startmDNS announces the service on the local network
+// mDNS discovery setup
 func startmDNS(port int) {
 	server, err := zeroconf.Register(
 		"PopOS Remote Control",
@@ -41,104 +43,124 @@ func startmDNS(port int) {
 		nil,
 	)
 	if err != nil {
-		log.Fatalf("mDNS Registration Error: %v", err)
+		log.Fatalf("mDNS Error: %v", err)
 	}
 	defer server.Shutdown()
-
-	log.Printf("mDNS service registered: PopOS Remote Control on port %d", port)
+	log.Printf("mDNS: Service registered as 'PopOS Remote Control'")
 	select {}
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket Upgrade Error: %v", err)
+		log.Printf("WS Upgrade Error: %v", err)
 		return
 	}
 	defer conn.Close()
 
-	log.Printf("New client connected: %s", r.RemoteAddr)
+	log.Printf("Client connected: %s", r.RemoteAddr)
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Client disconnected or connection lost: %v", err)
+			log.Printf("Client disconnected: %v", err)
 			break
 		}
 
 		var cmd Command
 		if err := json.Unmarshal(message, &cmd); err != nil {
-			log.Printf("Failed to parse command: %v", err)
 			continue
 		}
 
-		// RobotGo execution logic
+		// Security Check
+		if cmd.Token != serverPassword {
+			log.Printf("Access Denied: Invalid token from %s", r.RemoteAddr)
+			continue
+		}
+
 		switch cmd.Type {
 		case "move":
 			curX, curY := robotgo.Location()
 			robotgo.Move(curX+int(cmd.X), curY+int(cmd.Y))
-
 		case "click":
-			btn := "left"
-			if cmd.Button != "" {
-				btn = cmd.Button
-			}
-			robotgo.Click(btn, false)
-			log.Printf("Action: Mouse Click [%s]", btn)
-
-		case "scroll":
-			direction := "down"
-			if cmd.Y > 0 {
-				direction = "up"
-			}
-			robotgo.ScrollDir(1, direction)
-
-		case "tap":
-			if cmd.Key != "" {
-				robotgo.KeyTap(cmd.Key)
-				log.Printf("Action: Key Tap [%s]", cmd.Key)
-			}
+			robotgo.Click("left", false)
 		case "type_string":
 			if cmd.Value != "" {
 				robotgo.Type(cmd.Value)
 			}
-
+		case "tap":
+			if cmd.Key != "" {
+				robotgo.KeyTap(cmd.Key)
+			}
 		case "key_down":
 			if cmd.Key != "" {
 				robotgo.KeyDown(cmd.Key)
-				time.Sleep(50 * time.Millisecond)
-				log.Printf("Action: Key Down [%s]", cmd.Key)
+				time.Sleep(20 * time.Millisecond)
 			}
 		case "key_up":
 			if cmd.Key != "" {
 				robotgo.KeyUp(cmd.Key)
-				log.Printf("Action: Key Up [%s]", cmd.Key)
 			}
 		}
 	}
 }
 
-func main() {
-	const Port = 1488
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	// CORS headers for Android/Expo
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	// Start mDNS in a separate goroutine
-	go startmDNS(Port)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	log.Printf("Health Check Ping from: %s", r.RemoteAddr)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+
+func main() {
+	serverPassword = os.Getenv("SERVER_PASSWORD")
+	wsPortEnv := os.Getenv("WS_PORT")
+
+	if serverPassword == "" || wsPortEnv == "" {
+		panic("Incorrect env params")
+	}
+
+	wsPort, err := strconv.Atoi(wsPortEnv)
+	if err != nil {
+		panic("Incorrect ws port")
+	}
+
+	go startmDNS(wsPort)
 
 	http.HandleFunc("/ws", handleWS)
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Server is running on Pop!_OS")
-	})
+	http.HandleFunc("/health", handleHealth)
+
+	addrs, _ := net.InterfaceAddrs()
+	fmt.Println("------------------------------------")
+	fmt.Println("Remote Server Started!")
+	fmt.Printf("Port: %d\n", wsPort)
+	fmt.Printf("Password: %s\n", serverPassword)
+	fmt.Println("Available IP Addresses:")
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				fmt.Printf(" > %s\n", ipnet.IP.String())
+			}
+		}
+	}
+	fmt.Println("------------------------------------")
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", Port),
+		Addr:         fmt.Sprintf(":%d", wsPort),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	log.Printf("Remote Control Server started on :%d", Port)
-	log.Printf("Wait for connections from mobile app...")
-
 	if err := server.ListenAndServe(); err != nil {
-		log.Fatal("ListenAndServe Error: ", err)
+		log.Fatal("Server Error: ", err)
 	}
 }

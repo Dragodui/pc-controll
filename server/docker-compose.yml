@@ -1,0 +1,18 @@
+services:
+  server:
+    build: .
+    container_name: pc-control-server
+    # Host networking is required for mDNS discovery
+    network_mode: host
+    environment:
+      # Pass the host's DISPLAY variable for X11 control
+      - DISPLAY=${DISPLAY}
+      # Point to the mounted Xauthority file
+      - XAUTHORITY=/root/.Xauthority
+    # Load environment variables (WS_PORT, SERVER_PASSWORD) from .env
+    env_file:
+      - .env
+    # Mount X11 socket and Authority file for mouse/keyboard control
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${XAUTHORITY:-$HOME/.Xauthority}:/root/.Xauthority:ro

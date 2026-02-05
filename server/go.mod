@@ -5,15 +5,18 @@ go 1.24.0
 toolchain go1.24.13
 
 require (
+	github.com/go-vgo/robotgo v1.0.0
+	github.com/gorilla/websocket v1.5.3
+	github.com/grandcat/zeroconf v1.0.0
+)
+
+require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/dblohm7/wingoes v0.0.0-20250822163801-6d8e6105c62d // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/gen2brain/shm v0.1.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-vgo/robotgo v1.0.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/jezek/xgb v1.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/miekg/dns v1.1.27 // indirect

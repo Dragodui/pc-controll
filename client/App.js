@@ -1,114 +1,151 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet, Text, View, StatusBar, TextInput,
-  TouchableOpacity, Modal, ScrollView
+  TouchableOpacity, Modal, ScrollView, ActivityIndicator, Alert
 } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Slider from '@react-native-community/slider';
+import Slider from '@react-native-community/slider'; // Make sure this is installed
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
-import { Keyboard, Settings, Monitor, Trash2, Languages } from 'lucide-react-native';
+import { 
+  Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search 
+} from 'lucide-react-native';
 
 const SERVER_PORT = 1488;
+const DEFAULT_PASS = "1234";
 
 export default function App() {
-  const [status, setStatus] = useState('Offline');
+  const [currentScreen, setCurrentScreen] = useState('list');
   const [devices, setDevices] = useState([]);
-  const [activeIp, setActiveIp] = useState(null);
-  const [ipInput, setIpInput] = useState('');
+  const [activeDevice, setActiveDevice] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isAddModalVisible, setAddModalVisible] = useState(false);
+  const [isSensModalVisible, setSensModalVisible] = useState(false); // New modal state
+  
+  const [newIp, setNewIp] = useState('');
+  const [newPass, setNewPass] = useState(DEFAULT_PASS);
+  const [status, setStatus] = useState('Offline');
   const [sensitivity, setSensitivity] = useState(1.5);
-  const [isSettingsVisible, setSettingsVisible] = useState(false);
+  const [keyboardValue, setKeyboardValue] = useState('');
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const [lastOffset, setLastOffset] = useState(0);
-  
-  // State for the hidden keyboard input to prevent text accumulation
-  const [keyboardValue, setKeyboardValue] = useState('');
-  
+
   const ws = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    initApp();
+    loadData();
     return () => ws.current?.close();
   }, []);
 
-  const initApp = async () => {
+  const loadData = async () => {
     const savedDevices = await AsyncStorage.getItem('devices');
     const savedSens = await AsyncStorage.getItem('sensitivity');
-    const lastIp = await AsyncStorage.getItem('lastIp');
-    
     if (savedSens) setSensitivity(parseFloat(savedSens));
-    if (savedDevices) setDevices(JSON.parse(savedDevices));
-    if (lastIp) {
-      setActiveIp(lastIp);
-      connectToServer(lastIp);
-    } else {
-      setSettingsVisible(true);
+    if (savedDevices) {
+      const parsed = JSON.parse(savedDevices);
+      setDevices(parsed);
+      checkOnlineStatus(parsed);
     }
   };
 
-  const connectToServer = (ip) => {
-    if (!ip) return;
-    if (ws.current) ws.current.close();
-    setStatus(`Connecting...`);
+  const saveSens = async (val) => {
+    setSensitivity(val);
+    await AsyncStorage.setItem('sensitivity', val.toString());
+  };
 
-    ws.current = new WebSocket(`ws://${ip}:${SERVER_PORT}/ws`);
+  const checkOnlineStatus = async (list) => {
+    const updated = await Promise.all(list.map(async (dev) => {
+      try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 1500);
+        const resp = await fetch(`http://${dev.ip}:${SERVER_PORT}/health`, { signal: controller.signal });
+        clearTimeout(id);
+        return { ...dev, online: resp.ok };
+      } catch {
+        return { ...dev, online: false };
+      }
+    }));
+    setDevices(updated);
+  };
+
+  const smartScan = async () => {
+    setIsScanning(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const ipAddr = await Network.getIpAddressAsync();
+      const subnet = ipAddr.substring(0, ipAddr.lastIndexOf('.'));
+      const scanPromises = [];
+
+      for (let i = 1; i < 255; i++) {
+        const testIp = `${subnet}.${i}`;
+        scanPromises.push(
+          fetch(`http://${testIp}:${SERVER_PORT}/health`)
+            .then(res => res.ok ? testIp : null)
+            .catch(() => null)
+        );
+      }
+
+      const foundIps = (await Promise.all(scanPromises)).filter(ip => ip !== null);
+      
+      if (foundIps.length > 0) {
+        const newDevices = foundIps.map(ip => ({
+          id: ip, name: 'Discovered PC', ip: ip, pass: DEFAULT_PASS, online: true
+        }));
+        setDevices(prev => {
+          const combined = [...prev, ...newDevices];
+          const unique = combined.filter((v, i, a) => a.findIndex(t => t.ip === v.ip) === i);
+          AsyncStorage.setItem('devices', JSON.stringify(unique));
+          return unique;
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      Alert.alert("Scan Error", "Check WiFi connection");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const connectToDevice = (device) => {
+    if (ws.current) ws.current.close();
+    setActiveDevice(device);
+    ws.current = new WebSocket(`ws://${device.ip}:${SERVER_PORT}/ws`);
+    
     ws.current.onopen = () => {
       setStatus('Connected');
-      setActiveIp(ip);
-      AsyncStorage.setItem('lastIp', ip);
+      setCurrentScreen('control');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
-    ws.current.onerror = () => setStatus('Error');
     ws.current.onclose = () => setStatus('Offline');
+    ws.current.onerror = () => setStatus('Error');
   };
 
   const send = (data) => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(data));
+    if (ws.current?.readyState === WebSocket.OPEN && activeDevice) {
+      ws.current.send(JSON.stringify({ ...data, token: activeDevice.pass }));
     }
   };
 
-  const openKeyboard = () => {
-    if (inputRef.current) {
-      inputRef.current.blur();
-      setTimeout(() => {
-        inputRef.current.focus();
-      }, 100);
-    }
-  };
-
-  // Fixed: Use state to reset text and prevent "vlvlvldada" spam
-  const handleKeyboardInput = (text) => {
-    if (text.length > 0) {
+  const handleType = (text) => {
+    if (text) {
       send({ type: 'type_string', value: text });
-      setKeyboardValue(''); // Reset state
-      inputRef.current?.clear(); // Force clear native
+      setKeyboardValue('');
+      inputRef.current?.clear();
     }
   };
 
-  const switchLanguage = () => {
+  const switchLang = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     send({ type: 'key_down', key: 'command' });
     send({ type: 'tap', key: 'space' });
     send({ type: 'key_up', key: 'command' });
   };
 
-  const startSwitching = () => {
-    setIsSwitcherActive(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    send({ type: 'key_down', key: 'alt' });
-    setTimeout(() => send({ type: 'tap', key: 'tab' }), 50);
-  };
-
-  const stopSwitching = () => {
-    setIsSwitcherActive(false);
-    send({ type: 'key_up', key: 'alt' });
-  };
-
   const trackpadGesture = Gesture.Exclusive(
-    Gesture.Pan().onChange((event) => {
-      send({ type: 'move', x: event.changeX * sensitivity, y: event.changeY * sensitivity });
+    Gesture.Pan().onChange((e) => {
+      send({ type: 'move', x: e.changeX * sensitivity, y: e.changeY * sensitivity });
     }),
     Gesture.Tap().onEnd(() => {
       send({ type: 'click', button: 'left' });
@@ -117,133 +154,118 @@ export default function App() {
   );
 
   const switcherGesture = Gesture.Pan()
-    .onStart(() => { setLastOffset(0); startSwitching(); })
-    .onUpdate((event) => {
-      const threshold = 80; 
-      const diff = event.translationX - lastOffset;
+    .onStart(() => { setLastOffset(0); setIsSwitcherActive(true); send({ type: 'key_down', key: 'alt' }); setTimeout(() => send({ type: 'tap', key: 'tab' }), 50); })
+    .onUpdate((e) => {
+      const threshold = 50; const diff = e.translationX - lastOffset;
       if (Math.abs(diff) > threshold) {
         if (diff > 0) send({ type: 'tap', key: 'tab' });
-        else {
-          send({ type: 'key_down', key: 'shift' });
-          send({ type: 'tap', key: 'tab' });
-          send({ type: 'key_up', key: 'shift' });
-        }
-        Haptics.selectionAsync();
-        setLastOffset(event.translationX);
+        else { send({ type: 'key_down', key: 'shift' }); send({ type: 'tap', key: 'tab' }); send({ type: 'key_up', key: 'shift' }); }
+        Haptics.selectionAsync(); setLastOffset(e.translationX);
       }
     })
-    .onEnd(stopSwitching);
+    .onEnd(() => { setIsSwitcherActive(false); send({ type: 'key_up', key: 'alt' }); });
+
+  if (currentScreen === 'list') {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.listHeader}>
+          <Text style={styles.mainTitle}>Devices</Text>
+          <TouchableOpacity onPress={smartScan} disabled={isScanning}>
+            {isScanning ? <ActivityIndicator color="#007AFF" /> : <Search color="#007AFF" size={28} />}
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={styles.scroll}>
+          {devices.map(dev => (
+            <TouchableOpacity key={dev.id} style={styles.devCard} onPress={() => connectToDevice(dev)}>
+              <View style={styles.devInfo}>
+                <Monitor color={dev.online ? "#00ff00" : "#444"} size={30} />
+                <View style={{marginLeft: 15}}>
+                  <Text style={styles.devNameText}>{dev.name}</Text>
+                  <Text style={styles.devIpText}>{dev.ip}</Text>
+                </View>
+              </View>
+              <View style={styles.devStatusRow}>
+                {dev.online ? <Wifi color="#00ff00" size={18} /> : <WifiOff color="#ff3b30" size={18} />}
+                <TouchableOpacity onPress={() => {
+                  const upd = devices.filter(d => d.id !== dev.id);
+                  setDevices(upd);
+                  AsyncStorage.setItem('devices', JSON.stringify(upd));
+                }} style={{marginLeft: 20}}><Trash2 color="#ff3b30" size={20} /></TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <TouchableOpacity style={styles.fab} onPress={() => setAddModalVisible(true)}><Plus color="#fff" size={32} /></TouchableOpacity>
+        
+        <Modal visible={isAddModalVisible} animationType="slide" transparent>
+          <View style={styles.modalFull}><View style={styles.modalBox}>
+            <Text style={styles.modalLabel}>IP ADDRESS</Text>
+            <TextInput style={styles.input} value={newIp} onChangeText={setNewIp} keyboardType="numeric" placeholder="192.168.x.x" placeholderTextColor="#444" />
+            <Text style={styles.modalLabel}>PASSWORD</Text>
+            <TextInput style={styles.input} value={newPass} onChangeText={setNewPass} secureTextEntry placeholder="Server Password" placeholderTextColor="#444" />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#222'}]} onPress={() => setAddModalVisible(false)}><Text style={{color:'#fff'}}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF'}]} onPress={async () => {
+                const d = { id: Date.now().toString(), name: 'Desktop', ip: newIp, pass: newPass, online: false };
+                const upd = [...devices, d]; setDevices(upd);
+                await AsyncStorage.setItem('devices', JSON.stringify(upd));
+                setAddModalVisible(false); checkOnlineStatus(upd);
+              }}><Text style={{color:'#fff', fontWeight:'bold'}}>Add</Text></TouchableOpacity>
+            </View>
+          </View></View>
+        </Modal>
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.brand}>Pop!_Remote</Text>
-            <Text style={[styles.status, { color: status === 'Connected' ? '#00ff00' : '#ff3b30' }]}>
-              {status} {activeIp && `• ${activeIp}`}
-            </Text>
+        <View style={styles.headerControl}>
+          <TouchableOpacity onPress={() => {ws.current?.close(); setCurrentScreen('list');}}><ChevronLeft color="#fff" size={32} /></TouchableOpacity>
+          <View style={{alignItems:'center'}}>
+            <Text style={styles.brand}>{activeDevice?.name}</Text>
+            <Text style={[styles.statusSmall, {color: status === 'Connected' ? '#00ff00' : '#ff4444'}]}>{status}</Text>
           </View>
-          <View style={styles.navButtons}>
-            <TouchableOpacity onPress={switchLanguage} style={styles.iconButton}>
-              <Languages color="#fff" size={24} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={openKeyboard} style={styles.iconButton}>
-              <Keyboard color="#fff" size={24} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setSettingsVisible(true)} style={styles.iconButton}>
-              <Settings color="#fff" size={24} />
-            </TouchableOpacity>
+          <View style={{ flexDirection:'row'}}>
+            <TouchableOpacity onPress={switchLang} style={{marginRight: 30}}><Languages color="#fff" size={24} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => inputRef.current?.focus()} style={{marginRight: 30}}><KeyboardIcon color="#fff" size={24} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setSensModalVisible(true)}><Settings color="#fff" size={24} /></TouchableOpacity>
           </View>
         </View>
 
-        <TextInput
-          ref={inputRef}
-          style={styles.hiddenInput}
-          value={keyboardValue}
-          onChangeText={handleKeyboardInput}
-          onKeyPress={(e) => {
-            const key = e.nativeEvent.key;
-            if (key === 'Backspace') send({ type: 'tap', key: 'backspace' });
-            if (key === 'Enter') send({ type: 'tap', key: 'enter' });
-          }}
-          autoCorrect={false}
-          autoCapitalize="none"
-          blurOnSubmit={false}
-          caretHidden={true}
-        />
+        {/* HIDDEN INPUT FOR KEYBOARD */}
+        <TextInput ref={inputRef} style={styles.hiddenInput} value={keyboardValue} onChangeText={handleType} onKeyPress={(e) => {
+          if(e.nativeEvent.key === 'Backspace') send({type:'tap', key:'backspace'});
+          if(e.nativeEvent.key === 'Enter') send({type:'tap', key:'enter'});
+        }} autoCorrect={false} autoCapitalize="none" />
 
-        <GestureDetector gesture={trackpadGesture}>
-          <View style={styles.touchpad} collapsable={false}>
-            <Monitor color="#151515" size={80} strokeWidth={1} />
-          </View>
-        </GestureDetector>
+        {/* TRACKPAD */}
+        <GestureDetector gesture={trackpadGesture}><View style={styles.touchpad}><Monitor color="#0a0a0a" size={120} /></View></GestureDetector>
+        
+        {/* ALT+TAB BAR */}
+        <View style={styles.bottomPanel}><GestureDetector gesture={switcherGesture}><View style={[styles.switchBar, isSwitcherActive && styles.activeBar]}><Text style={styles.btnText}>ALT + TAB</Text></View></GestureDetector></View>
 
-        <View style={styles.bottomPanel}>
-          <GestureDetector gesture={switcherGesture}>
-            <View style={[styles.switchBar, isSwitcherActive && styles.activeBar]} collapsable={false}>
-              <Text style={styles.btnText}>
-                {isSwitcherActive ? "← SLIDE TO NAVIGATE →" : "HOLD & SLIDE FOR ALT+TAB"}
-              </Text>
-            </View>
-          </GestureDetector>
-        </View>
-
-        <Modal visible={isSettingsVisible} animationType="slide" transparent={true}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>DEVICES</Text>
-              <ScrollView style={{ width: '100%', maxHeight: 150 }}>
-                {devices.map(item => (
-                  <View key={item.id} style={[styles.deviceItem, activeIp === item.ip && styles.activeItem]}>
-                    <TouchableOpacity style={{flex: 1}} onPress={() => connectToServer(item.ip)}>
-                      <Text style={styles.deviceName}>{item.name}</Text>
-                      <Text style={styles.deviceIp}>{item.ip}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => {
-                        const updated = devices.filter(d => d.id !== item.id);
-                        setDevices(updated);
-                        AsyncStorage.setItem('devices', JSON.stringify(updated));
-                    }}>
-                      <Trash2 color="#ff3b30" size={20} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-
-              <TextInput 
-                style={styles.ipInput}
-                placeholder="PC IP Address"
-                placeholderTextColor="#444"
-                value={ipInput}
-                onChangeText={setIpInput}
-                keyboardType="numeric"
-              />
-              <TouchableOpacity style={styles.addBtn} onPress={async () => {
-                  if(!ipInput) return;
-                  const newD = { id: Date.now().toString(), name: 'Desktop', ip: ipInput };
-                  const up = [...devices, newD];
-                  setDevices(up);
-                  await AsyncStorage.setItem('devices', JSON.stringify(up));
-                  setIpInput('');
-                  connectToServer(ipInput);
-              }}>
-                <Text style={styles.addBtnText}>Add PC</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-              <Text style={styles.modalTitle}>SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
+        {/* QUICK SETTINGS MODAL (SENSITIVITY) */}
+        <Modal visible={isSensModalVisible} animationType="fade" transparent>
+          <View style={styles.modalFull}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalLabel}>MOUSE SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
               <Slider
-                style={{ width: '100%', height: 40 }}
-                minimumValue={0.5} maximumValue={5.0} step={0.1}
-                value={sensitivity} onValueChange={setSensitivity}
-                onSlidingComplete={(v) => AsyncStorage.setItem('sensitivity', v.toString())}
-                minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF"
+                style={{ width: '100%', height: 50 }}
+                minimumValue={0.5}
+                maximumValue={5.0}
+                step={0.1}
+                value={sensitivity}
+                onValueChange={setSensitivity}
+                onSlidingComplete={saveSens}
+                minimumTrackTintColor="#007AFF"
+                thumbTintColor="#007AFF"
               />
-              <TouchableOpacity onPress={() => setSettingsVisible(false)} style={styles.closeBtn}>
-                <Text style={styles.btnText}>Done</Text>
+              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%', marginTop: 20}]} onPress={() => setSensModalVisible(false)}>
+                <Text style={{color:'#fff', fontWeight:'bold'}}>Apply</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -254,28 +276,29 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { paddingTop: 60, paddingHorizontal: 25, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#000', paddingTop: 50 },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 25, alignItems: 'center' },
+  mainTitle: { color: '#fff', fontSize: 32, fontWeight: 'bold' },
+  scroll: { flex: 1, paddingHorizontal: 20 },
+  devCard: { backgroundColor: '#0a0a0a', padding: 20, borderRadius: 25, marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#1a1a1a' },
+  devInfo: { flexDirection: 'row', alignItems: 'center' },
+  devNameText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  devIpText: { color: '#444', fontSize: 13 },
+  devStatusRow: { flexDirection: 'row', alignItems: 'center' },
+  fab: { position: 'absolute', right: 30, bottom: 40, backgroundColor: '#007AFF', width: 64, height: 64, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  headerControl: { flexDirection: 'row', justifyContent: 'space-between', padding: 25, alignItems: 'center' },
   brand: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  status: { fontSize: 10, textTransform: 'uppercase', marginTop: 2 },
-  navButtons: { flexDirection: 'row' },
-  iconButton: { marginLeft: 15, padding: 8, backgroundColor: '#111', borderRadius: 12 },
-  hiddenInput: { height: 1, width: 1, opacity: 0, position: 'absolute', top: -10 },
-  touchpad: { flex: 1, margin: 20, marginTop: 30, borderRadius: 40, backgroundColor: '#080808', borderWidth: 1, borderColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
-  bottomPanel: { paddingBottom: 50, paddingHorizontal: 20 },
-  switchBar: { backgroundColor: '#111', height: 70, borderRadius: 25, borderWidth: 1, borderColor: '#222', justifyContent: 'center', alignItems: 'center', width: '100%' },
-  activeBar: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  btnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  modalContainer: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.9)' },
-  modalContent: { backgroundColor: '#111', padding: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30, alignItems: 'center' },
-  modalTitle: { color: '#444', fontSize: 12, fontWeight: 'bold', marginBottom: 15, alignSelf: 'flex-start' },
-  deviceItem: { flexDirection: 'row', padding: 15, backgroundColor: '#161616', borderRadius: 15, marginBottom: 8, borderWidth: 1, borderColor: '#222', alignItems: 'center' },
-  activeItem: { borderColor: '#007AFF' },
-  deviceName: { color: '#fff', fontWeight: '600' },
-  deviceIp: { color: '#666', fontSize: 11 },
-  ipInput: { width: '100%', backgroundColor: '#1a1a1a', color: '#fff', padding: 15, borderRadius: 15, marginTop: 10 },
-  addBtn: { width: '100%', backgroundColor: '#222', padding: 15, borderRadius: 15, marginTop: 10, alignItems: 'center' },
-  addBtnText: { color: '#007AFF', fontWeight: 'bold' },
-  divider: { height: 1, width: '100%', backgroundColor: '#222', marginVertical: 20 },
-  closeBtn: { marginTop: 20, paddingVertical: 15, paddingHorizontal: 60, backgroundColor: '#007AFF', borderRadius: 20 },
+  statusSmall: { fontSize: 10, textTransform: 'uppercase' },
+  touchpad: { flex: 1, margin: 20, borderRadius: 50, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', justifyContent: 'center', alignItems: 'center' },
+  bottomPanel: { paddingBottom: 40, paddingHorizontal: 20 },
+  switchBar: { backgroundColor: '#111', height: 70, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  activeBar: { backgroundColor: '#007AFF' },
+  btnText: { color: '#fff', fontWeight: 'bold' },
+  modalFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { backgroundColor: '#111', width: '85%', padding: 25, borderRadius: 30, borderWidth: 1, borderColor: '#222' },
+  modalLabel: { color: '#444', fontSize: 10, marginBottom: 8, fontWeight: 'bold' },
+  input: { backgroundColor: '#1a1a1a', color: '#fff', padding: 15, borderRadius: 15, marginBottom: 15 },
+  modalBtnRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  mBtn: { padding: 15, borderRadius: 15, width: '47%', alignItems: 'center' },
+  hiddenInput: { opacity: 0, position: 'absolute' }
 });
