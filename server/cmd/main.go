@@ -102,8 +102,19 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			if cmd.Value != "" {
 				robotgo.Type(cmd.Value)
 			}
-		}
 
+		case "key_down":
+			if cmd.Key != "" {
+				robotgo.KeyDown(cmd.Key)
+				time.Sleep(50 * time.Millisecond)
+				log.Printf("Action: Key Down [%s]", cmd.Key)
+			}
+		case "key_up":
+			if cmd.Key != "" {
+				robotgo.KeyUp(cmd.Key)
+				log.Printf("Action: Key Up [%s]", cmd.Key)
+			}
+		}
 	}
 }
 
