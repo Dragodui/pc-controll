@@ -6,7 +6,7 @@ A remote control application for Linux (X11) using a Go server and a React Nativ
 
 - **Trackpad**: Move mouse, single-finger tap for left click.
 - **Scroll**: Two-finger drag for vertical and horizontal scrolling.
-- **Right Click**: (Planned) Two-finger tap.
+- **Right Click**: Two-finger tap.
 - **Keyboard**: Full text input and special keys (Backspace, Enter).
 - **Alt+Tab**: Dedicated bar to switch windows easily with haptic feedback.
 - **Sensitivity**: Independent sliders for mouse and scroll speed.
