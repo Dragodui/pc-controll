@@ -77,7 +77,7 @@ Scan the QR code with the **Expo Go** app on your Android or iOS device.
 
 ---
 
-## 🛠 Troubleshooting
+## Troubleshooting
 
 - **"Could not open main display"**: Ensure you ran `xhost +local:docker`.
 - **Connection Timed Out**: Check your PC's firewall. You might need to allow the port:
