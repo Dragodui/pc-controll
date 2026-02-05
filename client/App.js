@@ -8,12 +8,16 @@ import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
+import Zeroconf from 'react-native-zeroconf';
 import { 
   Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search 
 } from 'lucide-react-native';
 
 const SERVER_PORT = 1488;
 const DEFAULT_PASS = "1234";
+const MDNS_TYPE = "remotepad";
+const MDNS_PROTOCOL = "tcp";
+const MDNS_DOMAIN = "local.";
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('list');
@@ -40,10 +44,14 @@ export default function App() {
   const pendingScroll = useRef({ x: 0, y: 0 });
   const smoothMove = useRef({ x: 0, y: 0 });
   const smoothScroll = useRef({ x: 0, y: 0 });
+  const zeroconfRef = useRef(null);
 
   useEffect(() => {
     loadData();
-    return () => ws.current?.close();
+    return () => {
+      ws.current?.close();
+      zeroconfRef.current?.stop();
+    };
   }, []);
 
   const loadData = async () => {
@@ -88,7 +96,8 @@ export default function App() {
       try {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 1500);
-        const resp = await fetch(`http://${dev.ip}:${SERVER_PORT}/health`, { signal: controller.signal });
+        const port = dev.port || SERVER_PORT;
+        const resp = await fetch(`http://${dev.ip}:${port}/health`, { signal: controller.signal });
         clearTimeout(id);
         return { ...dev, online: resp.ok };
       } catch {
@@ -98,10 +107,81 @@ export default function App() {
     setDevices(updated);
   };
 
+  const mdnsDiscover = () => {
+    return new Promise((resolve) => {
+      if (!zeroconfRef.current) {
+        zeroconfRef.current = new Zeroconf();
+      }
+      const zeroconf = zeroconfRef.current;
+      const found = new Map();
+
+      const pickAddress = (service) => {
+        const addresses = service?.addresses || [];
+        const ipv4 = addresses.find((addr) => addr && addr.indexOf(":") === -1);
+        if (ipv4) return ipv4;
+        if (service?.host) return service.host;
+        return null;
+      };
+
+      const onResolved = (service) => {
+        const ip = pickAddress(service);
+        if (!ip) return;
+        const port = service.port || SERVER_PORT;
+        const id = `${ip}:${port}`;
+        if (!found.has(id)) {
+          found.set(id, {
+            id,
+            name: service.name || "Discovered PC",
+            ip,
+            port,
+            pass: DEFAULT_PASS,
+            online: true
+          });
+        }
+      };
+
+      const onError = () => {
+        // mDNS errors are expected on some networks; fallback handles it.
+      };
+
+      zeroconf.on("resolved", onResolved);
+      zeroconf.on("error", onError);
+      zeroconf.scan(MDNS_TYPE, MDNS_PROTOCOL, MDNS_DOMAIN);
+
+      setTimeout(() => {
+        zeroconf.stop();
+        zeroconf.removeListener("resolved", onResolved);
+        zeroconf.removeListener("error", onError);
+        resolve(Array.from(found.values()));
+      }, 1500);
+    });
+  };
+
   const smartScan = async () => {
     setIsScanning(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      let mdnsDevices = [];
+      try {
+        mdnsDevices = await mdnsDiscover();
+      } catch {
+        mdnsDevices = [];
+      }
+
+      if (mdnsDevices.length > 0) {
+        setDevices((prev) => {
+          const combined = [...prev, ...mdnsDevices];
+          const unique = combined.filter((v, i, a) => {
+            const vPort = v.port || SERVER_PORT;
+            return a.findIndex((t) => t.ip === v.ip && (t.port || SERVER_PORT) === vPort) === i;
+          });
+          AsyncStorage.setItem('devices', JSON.stringify(unique));
+          return unique;
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return;
+      }
+
       const ipAddr = await Network.getIpAddressAsync();
       const subnet = ipAddr.substring(0, ipAddr.lastIndexOf('.'));
       const scanPromises = [];
@@ -116,11 +196,14 @@ export default function App() {
       const foundIps = (await Promise.all(scanPromises)).filter(ip => ip !== null);
       if (foundIps.length > 0) {
         const newDevices = foundIps.map(ip => ({
-          id: ip, name: 'Discovered PC', ip: ip, pass: DEFAULT_PASS, online: true
+          id: `${ip}:${SERVER_PORT}`, name: 'Discovered PC', ip: ip, port: SERVER_PORT, pass: DEFAULT_PASS, online: true
         }));
         setDevices(prev => {
           const combined = [...prev, ...newDevices];
-          const unique = combined.filter((v, i, a) => a.findIndex(t => t.ip === v.ip) === i);
+          const unique = combined.filter((v, i, a) => {
+            const vPort = v.port || SERVER_PORT;
+            return a.findIndex(t => t.ip === v.ip && (t.port || SERVER_PORT) === vPort) === i;
+          });
           AsyncStorage.setItem('devices', JSON.stringify(unique));
           return unique;
         });
@@ -136,7 +219,8 @@ export default function App() {
   const connectToDevice = (device) => {
     if (ws.current) ws.current.close();
     setActiveDevice(device);
-    ws.current = new WebSocket(`ws://${device.ip}:${SERVER_PORT}/ws`);
+    const port = device.port || SERVER_PORT;
+    ws.current = new WebSocket(`ws://${device.ip}:${port}/ws`);
     ws.current.onopen = () => {
       setStatus('Connected');
       setCurrentScreen('control');
@@ -292,7 +376,7 @@ export default function App() {
             <View style={styles.modalBtnRow}>
               <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#222'}]} onPress={() => setAddModalVisible(false)}><Text style={{color:'#fff'}}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF'}]} onPress={async () => {
-                const d = { id: Date.now().toString(), name: 'Desktop', ip: newIp, pass: newPass, online: false };
+                const d = { id: Date.now().toString(), name: 'Desktop', ip: newIp, port: SERVER_PORT, pass: newPass, online: false };
                 const upd = [...devices, d]; setDevices(upd);
                 await AsyncStorage.setItem('devices', JSON.stringify(upd));
                 setAddModalVisible(false); checkOnlineStatus(upd);
