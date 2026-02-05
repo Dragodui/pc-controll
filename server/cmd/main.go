@@ -19,6 +19,7 @@ type Command struct {
 	Y      float64 `json:"y"`
 	Button string  `json:"button"` // left, right, center
 	Key    string  `json:"key"`
+	Value  string  `json:"value"`
 }
 
 var upgrader = websocket.Upgrader{
@@ -97,7 +98,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				robotgo.KeyTap(cmd.Key)
 				log.Printf("Action: Key Tap [%s]", cmd.Key)
 			}
+		case "type_string":
+			if cmd.Value != "" {
+				robotgo.Type(cmd.Value)
+			}
 		}
+
 	}
 }
 

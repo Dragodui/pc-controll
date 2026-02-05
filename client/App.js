@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { 
-  StyleSheet, Text, View, StatusBar, TextInput, 
-  TouchableOpacity, Modal 
+import {
+  StyleSheet, Text, View, StatusBar, TextInput,
+  TouchableOpacity, Modal
 } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SERVER_IP = '192.168.0.47'; 
+const SERVER_IP = '192.168.0.47';
 const WS_URL = `ws://${SERVER_IP}:1488/ws`;
 
 export default function App() {
@@ -47,7 +47,7 @@ export default function App() {
     ws.current.onopen = () => setStatus('Connected');
     ws.current.onclose = () => {
       setStatus('Disconnected. Reconnecting...');
-      setTimeout(connect, 3000); 
+      setTimeout(connect, 3000);
     };
   };
 
@@ -74,38 +74,51 @@ export default function App() {
 
   const composed = Gesture.Exclusive(panGesture, tapGesture);
 
+  const handleTextChange = (text) => {
+    if (text.length > 0) {
+      send({
+        type: 'type_string',
+        value: text
+      });
+
+      setTimeout(() => {
+        inputRef.current?.clear();
+      }, 10);
+    }
+  };
+
   const handleKeyPress = (e) => {
     const key = e.nativeEvent.key;
-    let commandKey = key;
-    if (key === 'Backspace') commandKey = 'backspace';
-    if (key === 'Enter') commandKey = 'enter';
-    send({ type: 'tap', key: commandKey });
+    if (key === 'Backspace') send({ type: 'tap', key: 'backspace' });
+    if (key === 'Enter') send({ type: 'tap', key: 'enter' });
   };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        
+
         <View style={styles.header}>
           <Text style={styles.status}>{status}</Text>
           <View style={styles.navButtons}>
             <TouchableOpacity onPress={() => inputRef.current?.focus()} style={styles.iconButton}>
-              <Text style={{fontSize: 24}}>⌨️</Text>
+              <Text style={{ fontSize: 24 }}>⌨️</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setSettingsVisible(true)} style={styles.iconButton}>
-              <Text style={{fontSize: 24}}>⚙️</Text>
+              <Text style={{ fontSize: 24 }}>⚙️</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <TextInput
           ref={inputRef}
-          style={{ height: 0, width: 0, opacity: 0 }}
+          style={{ height: 0, width: 0, opacity: 0, position: 'absolute' }}
+          onChangeText={handleTextChange}
           onKeyPress={handleKeyPress}
           autoCorrect={false}
           autoCapitalize="none"
-          value="" 
+          keyboardType="default"
+          submitBehavior={"blurAndSubmit"}
         />
 
         <GestureDetector gesture={composed}>
@@ -118,24 +131,24 @@ export default function App() {
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Sensitivity</Text>
-              
+
               <Text style={styles.valText}>{sensitivity.toFixed(1)}x</Text>
-              
+
               <Slider
-                style={{width: 250, height: 40}}
+                style={{ width: 250, height: 40 }}
                 minimumValue={0.5}
                 maximumValue={5.0}
                 step={0.1}
                 value={sensitivity}
                 onValueChange={(val) => setSensitivity(val)}
-                onSlidingComplete={saveSettings} 
+                onSlidingComplete={saveSettings}
                 minimumTrackTintColor="#007AFF"
                 maximumTrackTintColor="#444"
                 thumbTintColor="#007AFF"
               />
 
-              <TouchableOpacity 
-                onPress={() => setSettingsVisible(false)} 
+              <TouchableOpacity
+                onPress={() => setSettingsVisible(false)}
                 style={styles.closeBtn}
               >
                 <Text style={styles.btnText}>Done</Text>
@@ -150,17 +163,17 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  header: { 
-    paddingTop: 50, paddingHorizontal: 20, 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' 
+  header: {
+    paddingTop: 50, paddingHorizontal: 20,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
   },
   status: { color: '#00ff00', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
   navButtons: { flexDirection: 'row' },
   iconButton: { marginLeft: 20, padding: 5 },
-  touchpad: { 
-    flex: 1, margin: 20, marginBottom: 40, borderRadius: 30, borderWidth: 1, 
-    borderColor: '#222', backgroundColor: '#0a0a0a', 
-    justifyContent: 'center', alignItems: 'center' 
+  touchpad: {
+    flex: 1, margin: 20, marginBottom: 40, borderRadius: 30, borderWidth: 1,
+    borderColor: '#222', backgroundColor: '#0a0a0a',
+    justifyContent: 'center', alignItems: 'center'
   },
   label: { color: '#1a1a1a', fontSize: 32, fontWeight: '900', letterSpacing: 4 },
   modalContainer: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.9)' },
