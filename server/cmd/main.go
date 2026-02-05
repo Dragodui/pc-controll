@@ -33,6 +33,22 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type noDelayListener struct {
+	*net.TCPListener
+}
+
+func (l noDelayListener) Accept() (net.Conn, error) {
+	conn, err := l.TCPListener.AcceptTCP()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetNoDelay(true); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
 // mDNS discovery setup
 func startmDNS(port int) {
 	server, err := zeroconf.Register(
@@ -163,7 +179,16 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
+	rawListener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		log.Fatal("Listen Error: ", err)
+	}
+	tcpListener, ok := rawListener.(*net.TCPListener)
+	if !ok {
+		log.Fatal("Listener Error: not a TCP listener")
+	}
+
+	if err := server.Serve(noDelayListener{TCPListener: tcpListener}); err != nil {
 		log.Fatal("Server Error: ", err)
 	}
 }

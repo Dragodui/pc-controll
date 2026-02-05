@@ -28,12 +28,18 @@ export default function App() {
   const [status, setStatus] = useState('Offline');
   const [sensitivity, setSensitivity] = useState(1.5);
   const [scrollSensitivity, setScrollSensitivity] = useState(0.5);
+  const [smoothFactor, setSmoothFactor] = useState(0.7);
+  const [deadzone, setDeadzone] = useState(0.6);
   const [keyboardValue, setKeyboardValue] = useState('');
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const [lastOffset, setLastOffset] = useState(0);
 
   const ws = useRef(null);
   const inputRef = useRef(null);
+  const pendingMove = useRef({ x: 0, y: 0 });
+  const pendingScroll = useRef({ x: 0, y: 0 });
+  const smoothMove = useRef({ x: 0, y: 0 });
+  const smoothScroll = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     loadData();
@@ -44,8 +50,12 @@ export default function App() {
     const savedDevices = await AsyncStorage.getItem('devices');
     const savedSens = await AsyncStorage.getItem('sensitivity');
     const savedScrollSens = await AsyncStorage.getItem('scrollSensitivity');
+    const savedSmooth = await AsyncStorage.getItem('smoothFactor');
+    const savedDeadzone = await AsyncStorage.getItem('deadzone');
     if (savedSens) setSensitivity(parseFloat(savedSens));
     if (savedScrollSens) setScrollSensitivity(parseFloat(savedScrollSens));
+    if (savedSmooth) setSmoothFactor(parseFloat(savedSmooth));
+    if (savedDeadzone) setDeadzone(parseFloat(savedDeadzone));
     if (savedDevices) {
       const parsed = JSON.parse(savedDevices);
       setDevices(parsed);
@@ -61,6 +71,16 @@ export default function App() {
   const saveScrollSens = async (val) => {
     setScrollSensitivity(val);
     await AsyncStorage.setItem('scrollSensitivity', val.toString());
+  };
+
+  const saveSmoothFactor = async (val) => {
+    setSmoothFactor(val);
+    await AsyncStorage.setItem('smoothFactor', val.toString());
+  };
+
+  const saveDeadzone = async (val) => {
+    setDeadzone(val);
+    await AsyncStorage.setItem('deadzone', val.toString());
   };
 
   const checkOnlineStatus = async (list) => {
@@ -132,6 +152,41 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
+
+      const move = pendingMove.current;
+      const scroll = pendingScroll.current;
+      pendingMove.current = { x: 0, y: 0 };
+      pendingScroll.current = { x: 0, y: 0 };
+
+      if (move.x !== 0 || move.y !== 0) {
+        const sm = smoothMove.current;
+        const alpha = 1 - smoothFactor;
+        const sx = sm.x * smoothFactor + move.x * alpha;
+        const sy = sm.y * smoothFactor + move.y * alpha;
+        smoothMove.current = { x: sx, y: sy };
+        if (Math.abs(sx) >= deadzone || Math.abs(sy) >= deadzone) {
+          send({ type: 'move', x: sx, y: sy });
+        }
+      }
+
+      if (scroll.x !== 0 || scroll.y !== 0) {
+        const ss = smoothScroll.current;
+        const alpha = 1 - smoothFactor;
+        const sx = ss.x * smoothFactor + scroll.x * alpha;
+        const sy = ss.y * smoothFactor + scroll.y * alpha;
+        smoothScroll.current = { x: sx, y: sy };
+        if (Math.abs(sx) >= deadzone || Math.abs(sy) >= deadzone) {
+          send({ type: 'scroll', x: sx, y: sy });
+        }
+      }
+    }, 16);
+
+    return () => clearInterval(interval);
+  }, [smoothFactor, deadzone, activeDevice]);
+
   const handleType = (text) => {
     if (text) {
       send({ type: 'type_string', value: text });
@@ -151,14 +206,16 @@ export default function App() {
     .minPointers(1)
     .maxPointers(1)
     .onChange((e) => {
-      send({ type: 'move', x: e.changeX * sensitivity, y: e.changeY * sensitivity });
+      pendingMove.current.x += e.changeX * sensitivity;
+      pendingMove.current.y += e.changeY * sensitivity;
     });
 
   const scrollGesture = Gesture.Pan()
     .minPointers(2)
     .maxPointers(2)
     .onChange((e) => {
-      send({ type: 'scroll', x: 0, y: e.changeY * scrollSensitivity });
+      pendingScroll.current.x += 0;
+      pendingScroll.current.y += e.changeY * scrollSensitivity;
     });
 
   const leftClickGesture = Gesture.Tap()
@@ -276,6 +333,10 @@ export default function App() {
               <Slider style={{ width: '100%', height: 50 }} minimumValue={0.5} maximumValue={5.0} step={0.1} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={saveSens} minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF" />
               <Text style={[styles.modalLabel, {marginTop: 20}]}>SCROLL SENSITIVITY: {scrollSensitivity.toFixed(1)}x</Text>
               <Slider style={{ width: '100%', height: 50 }} minimumValue={0.1} maximumValue={5.0} step={0.1} value={scrollSensitivity} onValueChange={setScrollSensitivity} onSlidingComplete={saveScrollSens} minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF" />
+              <Text style={[styles.modalLabel, {marginTop: 20}]}>SMOOTHING: {smoothFactor.toFixed(2)}</Text>
+              <Slider style={{ width: '100%', height: 50 }} minimumValue={0.0} maximumValue={0.9} step={0.05} value={smoothFactor} onValueChange={setSmoothFactor} onSlidingComplete={saveSmoothFactor} minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF" />
+              <Text style={[styles.modalLabel, {marginTop: 20}]}>DEADZONE: {deadzone.toFixed(1)} px</Text>
+              <Slider style={{ width: '100%', height: 50 }} minimumValue={0.0} maximumValue={3.0} step={0.1} value={deadzone} onValueChange={setDeadzone} onSlidingComplete={saveDeadzone} minimumTrackTintColor="#007AFF" thumbTintColor="#007AFF" />
               <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%', marginTop: 20}]} onPress={() => setSensModalVisible(false)}><Text style={{color:'#fff', fontWeight:'bold'}}>Apply</Text></TouchableOpacity>
             </View>
           </View>
