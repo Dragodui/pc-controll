@@ -28,7 +28,7 @@ cp .env.example .env # Or create one manually
 
 Edit `.env`:
 ```env
-WS_PORT=1488
+WS_PORT=1212
 SERVER_PASSWORD=1234
 ```
 
@@ -72,7 +72,7 @@ Scan the QR code with the **Expo Go** app on your Android or iOS device.
 ### 3. Connecting
 - Ensure your phone and PC are on the **same Wi-Fi network**.
 - Use the **Search** icon in the app to scan the network, or tap the **+** button to add your PC's IP manually.
-- Default Port: `1488`
+- Default Port: `1212`
 - Default Password: `1234`
 
 ---
@@ -82,7 +82,7 @@ Scan the QR code with the **Expo Go** app on your Android or iOS device.
 - **"Could not open main display"**: Ensure you ran `xhost +local:docker`.
 - **Connection Timed Out**: Check your PC's firewall. You might need to allow the port:
   ```bash
-  sudo ufw allow 1488/tcp
+  sudo ufw allow 1212/tcp
   ```
 - **Scrolling doesn't work**: Ensure your Linux environment uses **X11** (Wayland is currently not supported by `robotgo`).
 

@@ -372,7 +372,7 @@ export default function App() {
             <Text style={styles.modalLabel}>IP ADDRESS</Text>
             <TextInput style={styles.input} value={newIp} onChangeText={setNewIp} keyboardType="numeric" placeholder="192.168.x.x" placeholderTextColor="#444" />
             <Text style={styles.modalLabel}>PORT</Text>
-            <TextInput style={styles.input} value={newPort} onChangeText={setNewPort} keyboardType="numeric" placeholder="1488" placeholderTextColor="#444" />
+            <TextInput style={styles.input} value={newPort} onChangeText={setNewPort} keyboardType="numeric" placeholder="1212" placeholderTextColor="#444" />
             <Text style={styles.modalLabel}>PASSWORD</Text>
             <TextInput style={styles.input} value={newPass} onChangeText={setNewPass} secureTextEntry placeholder="Server Password" placeholderTextColor="#444" />
             <View style={styles.modalBtnRow}>
