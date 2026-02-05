@@ -13,8 +13,7 @@ import {
   Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search 
 } from 'lucide-react-native';
 
-const SERVER_PORT = 1488;
-const DEFAULT_PASS = "1234";
+const SERVER_PORT = 1212;
 const MDNS_TYPE = "remotepad";
 const MDNS_PROTOCOL = "tcp";
 const MDNS_DOMAIN = "local.";
@@ -28,7 +27,8 @@ export default function App() {
   const [isSensModalVisible, setSensModalVisible] = useState(false);
   
   const [newIp, setNewIp] = useState('');
-  const [newPass, setNewPass] = useState(DEFAULT_PASS);
+  const [newPass, setNewPass] = useState('');
+  const [newPort, setNewPort] = useState(SERVER_PORT.toString());
   const [status, setStatus] = useState('Offline');
   const [sensitivity, setSensitivity] = useState(1.5);
   const [scrollSensitivity, setScrollSensitivity] = useState(0.5);
@@ -371,12 +371,16 @@ export default function App() {
           <View style={styles.modalFull}><View style={styles.modalBox}>
             <Text style={styles.modalLabel}>IP ADDRESS</Text>
             <TextInput style={styles.input} value={newIp} onChangeText={setNewIp} keyboardType="numeric" placeholder="192.168.x.x" placeholderTextColor="#444" />
+            <Text style={styles.modalLabel}>PORT</Text>
+            <TextInput style={styles.input} value={newPort} onChangeText={setNewPort} keyboardType="numeric" placeholder="1488" placeholderTextColor="#444" />
             <Text style={styles.modalLabel}>PASSWORD</Text>
             <TextInput style={styles.input} value={newPass} onChangeText={setNewPass} secureTextEntry placeholder="Server Password" placeholderTextColor="#444" />
             <View style={styles.modalBtnRow}>
               <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#222'}]} onPress={() => setAddModalVisible(false)}><Text style={{color:'#fff'}}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF'}]} onPress={async () => {
-                const d = { id: Date.now().toString(), name: 'Desktop', ip: newIp, port: SERVER_PORT, pass: newPass, online: false };
+                const parsedPort = parseInt(newPort, 10);
+                const portValue = Number.isFinite(parsedPort) ? parsedPort : SERVER_PORT;
+                const d = { id: Date.now().toString(), name: 'Desktop', ip: newIp, port: portValue, pass: newPass, online: false };
                 const upd = [...devices, d]; setDevices(upd);
                 await AsyncStorage.setItem('devices', JSON.stringify(upd));
                 setAddModalVisible(false); checkOnlineStatus(upd);

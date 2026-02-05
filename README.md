@@ -53,7 +53,7 @@ go run cmd/main.go
 
 ---
 
-## 📱 Client Setup (Mobile)
+## Client Setup (Mobile)
 
 The client is built with Expo (React Native).
 
