@@ -26,6 +26,7 @@ type Command struct {
 }
 
 var serverPassword string
+var pcName string
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -52,7 +53,7 @@ func (l noDelayListener) Accept() (net.Conn, error) {
 // mDNS discovery setup
 func startmDNS(port int) {
 	server, err := zeroconf.Register(
-		"PopOS Remote Control",
+		pcName,
 		"_remotepad._tcp",
 		"local.",
 		port,
@@ -143,6 +144,11 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 func main() {
 	serverPassword = os.Getenv("SERVER_PASSWORD")
 	wsPortEnv := os.Getenv("WS_PORT")
+	pcName = os.Getenv("PC_NAME")
+
+	if pcName == "" {
+		pcName = "Remote PC"
+	}
 
 	if serverPassword == "" || wsPortEnv == "" {
 		panic("Incorrect env params")
