@@ -7,19 +7,35 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Discover and connect to PCs on your local network.",
+        "NSBonjourServices": [
+          "_remotepad._tcp"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_MULTICAST_STATE",
+        "NEARBY_WIFI_DEVICES"
+      ],
+      "package": "com.aksandr.pccontrollclient"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "db12a56e-3e01-40e1-9600-f54cb2a02936"
+      }
     }
-    
   }
 }

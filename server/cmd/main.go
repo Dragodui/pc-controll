@@ -26,6 +26,7 @@ type Command struct {
 }
 
 var serverPassword string
+var pcName string
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -33,10 +34,26 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type noDelayListener struct {
+	*net.TCPListener
+}
+
+func (l noDelayListener) Accept() (net.Conn, error) {
+	conn, err := l.TCPListener.AcceptTCP()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetNoDelay(true); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
 // mDNS discovery setup
 func startmDNS(port int) {
 	server, err := zeroconf.Register(
-		"PopOS Remote Control",
+		pcName,
 		"_remotepad._tcp",
 		"local.",
 		port,
@@ -127,6 +144,11 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 func main() {
 	serverPassword = os.Getenv("SERVER_PASSWORD")
 	wsPortEnv := os.Getenv("WS_PORT")
+	pcName = os.Getenv("PC_NAME")
+
+	if pcName == "" {
+		pcName = "Remote PC"
+	}
 
 	if serverPassword == "" || wsPortEnv == "" {
 		panic("Incorrect env params")
@@ -163,7 +185,16 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
+	rawListener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		log.Fatal("Listen Error: ", err)
+	}
+	tcpListener, ok := rawListener.(*net.TCPListener)
+	if !ok {
+		log.Fatal("Listener Error: not a TCP listener")
+	}
+
+	if err := server.Serve(noDelayListener{TCPListener: tcpListener}); err != nil {
 		log.Fatal("Server Error: ", err)
 	}
 }
