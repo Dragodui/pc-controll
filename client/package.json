@@ -7,7 +7,8 @@
     "android": "npx expo start --android",
     "dev": "npx expo start --dev-client",
     "ios": "npx expo start --ios",
-    "web": "npx expo start --web"
+    "web": "npx expo start --web",
+    "build:apk": "eas build -p android --profile preview"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
