@@ -1,40 +1,20 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"time"
 
-	"github.com/go-vgo/robotgo"
-	"github.com/gorilla/websocket"
 	"github.com/grandcat/zeroconf"
 )
 
-type Command struct {
-	Type  string  `json:"type"`
-	X     float64 `json:"x"`
-	Y     float64 `json:"y"`
-	Key   string  `json:"key"`
-	Value string  `json:"value"`
-	Token string  `json:"token"`
-	Button string `json:"button"`
-}
-
 var serverPassword string
 var pcName string
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
 
 type noDelayListener struct {
 	*net.TCPListener
@@ -52,7 +32,6 @@ func (l noDelayListener) Accept() (net.Conn, error) {
 	return conn, nil
 }
 
-// mDNS discovery setup
 func startmDNS(port int) {
 	server, err := zeroconf.Register(
 		pcName,
@@ -66,134 +45,8 @@ func startmDNS(port int) {
 		log.Fatalf("mDNS Error: %v", err)
 	}
 	defer server.Shutdown()
-	log.Printf("mDNS: Service registered as 'PopOS Remote Control'")
+	log.Printf("mDNS: Service registered as '%s'", pcName)
 	select {}
-}
-
-func handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("WS Upgrade Error: %v", err)
-		return
-	}
-	defer conn.Close()
-
-	log.Printf("Client connected: %s", r.RemoteAddr)
-
-	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Printf("Client disconnected: %v", err)
-			break
-		}
-
-		var cmd Command
-		if err := json.Unmarshal(message, &cmd); err != nil {
-			continue
-		}
-
-		// Security Check
-		if cmd.Token != serverPassword {
-			log.Printf("Access Denied: Invalid token from %s", r.RemoteAddr)
-			continue
-		}
-
-		switch cmd.Type {
-		case "move":
-			curX, curY := robotgo.Location()
-			robotgo.Move(curX+int(cmd.X), curY+int(cmd.Y))
-		case "scroll":
-			robotgo.Scroll(int(cmd.X), int(cmd.Y))
-		case "click":
-			robotgo.Click(cmd.Button, false)
-		case "type_string":
-			if cmd.Value != "" {
-				robotgo.Type(cmd.Value)
-			}
-		case "tap":
-			if cmd.Key != "" {
-				robotgo.KeyTap(cmd.Key)
-			}
-		case "key_down":
-			if cmd.Key != "" {
-				robotgo.KeyDown(cmd.Key)
-				time.Sleep(20 * time.Millisecond)
-			}
-		case "key_up":
-			if cmd.Key != "" {
-				robotgo.KeyUp(cmd.Key)
-			}
-		case "media":
-			robotgo.KeyTap(cmd.Value)
-		case "system":
-			handleSystemCommand(cmd.Value)
-		case "clipboard_set":
-			robotgo.WriteAll(cmd.Value)
-		case "clipboard_get":
-			text, _ := robotgo.ReadAll()
-			conn.WriteJSON(map[string]string{
-				"type":  "clipboard",
-				"value": text,
-			})
-		}
-	}
-}
-
-func handleSystemCommand(action string) {
-	var cmd *exec.Cmd
-	switch action {
-	case "shutdown":
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("shutdown", "/s", "/t", "0")
-		} else {
-			cmd = exec.Command("shutdown", "now")
-		}
-	case "restart":
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("shutdown", "/r", "/t", "0")
-		} else {
-			cmd = exec.Command("reboot")
-		}
-	case "lock":
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("rundll32.exe", "user32.dll,LockWorkStation")
-		} else if runtime.GOOS == "darwin" {
-			cmd = exec.Command("open", "-a", "ScreenSaverEngine")
-		} else {
-			cmd = exec.Command("loginctl", "lock-session")
-		}
-	case "sleep":
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("rundll32.exe", "powprof.dll,SetSuspendState", "0", "1", "0")
-		} else if runtime.GOOS == "darwin" {
-			cmd = exec.Command("pmset", "sleepnow")
-		} else {
-			cmd = exec.Command("systemctl", "suspend")
-		}
-	}
-
-	if cmd != nil {
-		err := cmd.Run()
-		if err != nil {
-			log.Printf("System command error: %v", err)
-		}
-	}
-}
-
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	// CORS headers for Android/Expo
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	log.Printf("Health Check Ping from: %s", r.RemoteAddr)
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "OK")
 }
 
 func main() {
@@ -222,6 +75,8 @@ func main() {
 	addrs, _ := net.InterfaceAddrs()
 	fmt.Println("------------------------------------")
 	fmt.Println("Remote Server Started!")
+	fmt.Printf("OS: %s (%s)\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Printf("PC Name: %s\n", pcName)
 	fmt.Printf("Port: %d\n", wsPort)
 	fmt.Printf("Password: %s\n", serverPassword)
 	fmt.Println("Available IP Addresses:")
