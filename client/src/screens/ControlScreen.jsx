@@ -1,14 +1,17 @@
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, StatusBar, TouchableOpacity, TextInput } from 'react-native';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Slider from '@react-native-community/slider';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { 
-  ChevronLeft, Power, Languages, Keyboard as KeyboardIcon, Play, Copy, Download, Settings, Monitor,
-  SkipBack, SkipForward, Lock
+  ChevronLeft, Power, Languages, Keyboard as KeyboardIcon, Play, Copy, Download, Settings, Monitor, LayoutGrid
 } from 'lucide-react-native';
 import { theme } from '../styles/theme';
+
+// Modals
+import { AppLauncherModal } from '../components/modals/AppLauncherModal';
+import { MediaModal } from '../components/modals/MediaModal';
+import { SystemModal } from '../components/modals/SystemModal';
+import { SensitivityModal } from '../components/modals/SensitivityModal';
 
 export const ControlScreen = ({
   activeDevice, status, ws, setCurrentScreen, setActiveDevice, send,
@@ -20,6 +23,8 @@ export const ControlScreen = ({
   scrollSensitivity, setScrollSensitivity,
   smoothFactor, setSmoothFactor
 }) => {
+  const [isLauncherVisible, setLauncherVisible] = React.useState(false);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={theme.container}>
@@ -40,6 +45,7 @@ export const ControlScreen = ({
         <View style={theme.toolBar}>
           <TouchableOpacity onPress={() => send({type:'key_down', key:'command'})}><Languages color="#fff" size={24} /></TouchableOpacity>
           <TouchableOpacity onPress={() => inputRef.current?.focus()}><KeyboardIcon color="#fff" size={24} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setLauncherVisible(true)}><LayoutGrid color="#fff" size={24} /></TouchableOpacity>
           <TouchableOpacity onPress={() => setMediaModalVisible(true)}><Play color="#fff" size={24} /></TouchableOpacity>
           <TouchableOpacity onPress={async () => {
              const text = await Clipboard.getStringAsync();
@@ -69,43 +75,31 @@ export const ControlScreen = ({
           </TouchableOpacity>
         </View>
 
-        {/* Media Modal */}
-        <Modal visible={isMediaModalVisible} animationType="slide" transparent>
-          <View style={theme.modalFull}>
-            <View style={theme.modalBox}>
-              <View style={theme.mediaRow}>
-                <TouchableOpacity onPress={() => send({type:'media', value:'audio_prev'})}><SkipBack color="#fff" size={32} /></TouchableOpacity>
-                <TouchableOpacity onPress={() => send({type:'media', value:'audio_play_pause'})}><Play color="#fff" size={48} /></TouchableOpacity>
-                <TouchableOpacity onPress={() => send({type:'media', value:'audio_next'})}><SkipForward color="#fff" size={32} /></TouchableOpacity>
-              </View>
-              <TouchableOpacity style={[theme.mBtn, {backgroundColor: '#333', marginTop: 30}]} onPress={() => setMediaModalVisible(false)}><Text style={{color:'#fff'}}>CLOSE</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        <AppLauncherModal 
+          visible={isLauncherVisible} 
+          onClose={() => setLauncherVisible(false)} 
+          onOpenApp={(url) => send({ type: 'open_url', value: url })}
+        />
 
-        {/* System Modal */}
-        <Modal visible={isSystemModalVisible} animationType="fade" transparent>
-          <View style={theme.modalFull}>
-            <View style={theme.modalBox}>
-              <View style={theme.sysGrid}>
-                <TouchableOpacity style={theme.sysBtn} onPress={() => send({type:'system', value:'shutdown'})}><Power color="#ff3b30" size={32} /><Text style={theme.sysText}>Power Off</Text></TouchableOpacity>
-                <TouchableOpacity style={theme.sysBtn} onPress={() => send({type:'system', value:'lock'})}><Lock color="#fff" size={32} /><Text style={theme.sysText}>Lock</Text></TouchableOpacity>
-              </View>
-              <TouchableOpacity style={[theme.mBtn, {backgroundColor: '#333', marginTop: 20}]} onPress={() => setSystemModalVisible(false)}><Text style={{color:'#fff'}}>CANCEL</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        <MediaModal 
+          visible={isMediaModalVisible} 
+          onClose={() => setMediaModalVisible(false)} 
+          send={send} 
+        />
 
-        {/* Sensitivity Modal */}
-        <Modal visible={isSensModalVisible} animationType="fade" transparent>
-          <View style={theme.modalFull}>
-            <View style={theme.modalBox}>
-              <Text style={theme.modalLabel}>SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
-              <Slider style={{width:'100%', height:40}} minimumValue={0.5} maximumValue={5} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={val => AsyncStorage.setItem('sensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
-              <TouchableOpacity style={[theme.mBtn, {backgroundColor: '#007AFF', marginTop: 20}]} onPress={() => setSensModalVisible(false)}><Text style={{color:'#fff', fontWeight:'bold'}}>DONE</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        <SystemModal 
+          visible={isSystemModalVisible} 
+          onClose={() => setSystemModalVisible(false)} 
+          send={send} 
+        />
+
+        <SensitivityModal 
+          visible={isSensModalVisible} 
+          onClose={() => setSensModalVisible(false)}
+          sensitivity={sensitivity} setSensitivity={setSensitivity}
+          scrollSensitivity={scrollSensitivity} setScrollSensitivity={setScrollSensitivity}
+          smoothFactor={smoothFactor} setSmoothFactor={setSmoothFactor}
+        />
       </View>
     </GestureHandlerRootView>
   );

@@ -1,8 +1,12 @@
 import React from 'react';
-import { View, Text, StatusBar, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { View, Text, StatusBar, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Search, Monitor, Trash2, Plus } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../styles/theme';
+
+// Modals
+import { AddDeviceModal } from '../components/modals/AddDeviceModal';
+import { PasswordModal } from '../components/modals/PasswordModal';
 
 export const DeviceList = ({ 
   devices, setDevices, isScanning, smartScan, handleDevicePress, 
@@ -43,30 +47,23 @@ export const DeviceList = ({
         <Plus color="#fff" size={32} />
       </TouchableOpacity>
       
-      {/* Pass Prompt Modal */}
-      <Modal visible={isPassPromptVisible} animationType="fade" transparent>
-        <View style={theme.modalFull}><View style={theme.modalBox}>
-          <Text style={theme.modalLabel}>ENTER PASSWORD FOR {tempDevice?.name}</Text>
-          <TextInput style={theme.input} secureTextEntry value={promptPass} onChangeText={setPromptPass} autoFocus />
-          <TouchableOpacity style={[theme.mBtn, {backgroundColor: '#007AFF', width: '100%'}]} onPress={savePasswordAndConnect}>
-            <Text style={{color:'#fff', fontWeight:'bold'}}>CONNECT</Text>
-          </TouchableOpacity>
-        </View></View>
-      </Modal>
+      <PasswordModal 
+        visible={isPassPromptVisible}
+        deviceName={tempDevice?.name}
+        promptPass={promptPass}
+        setPromptPass={setPromptPass}
+        onConnect={savePasswordAndConnect}
+      />
 
-      {/* Add Device Modal */}
-      <Modal visible={isAddModalVisible} animationType="slide" transparent>
-        <View style={theme.modalFull}><View style={theme.modalBox}>
-          <TextInput style={theme.input} placeholder="IP" value={newIp} onChangeText={setNewIp} keyboardType="numeric" />
-          <TextInput style={theme.input} placeholder="Port" value={newPort} onChangeText={setNewPort} keyboardType="numeric" />
-          <TextInput style={theme.input} placeholder="Pass" value={newPass} onChangeText={setNewPass} secureTextEntry />
-          <TouchableOpacity style={[theme.mBtn, {backgroundColor: '#007AFF', width: '100%'}]} onPress={async () => {
-            const d = { id: Date.now().toString(), name: 'Manual', ip: newIp, port: parseInt(newPort), pass: newPass, online: false };
-            const upd = [...devices, d]; setDevices(upd);
-            AsyncStorage.setItem('devices', JSON.stringify(upd)); setAddModalVisible(false);
-          }}><Text style={{color:'#fff', fontWeight:'bold'}}>ADD</Text></TouchableOpacity>
-        </View></View>
-      </Modal>
+      <AddDeviceModal 
+        visible={isAddModalVisible}
+        onClose={() => setAddModalVisible(false)}
+        devices={devices}
+        setDevices={setDevices}
+        newIp={newIp} setNewIp={setNewIp}
+        newPort={newPort} setNewPort={setNewPort}
+        newPass={newPass} setNewPass={setNewPass}
+      />
     </View>
   );
 };

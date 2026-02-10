@@ -46,3 +46,20 @@ func handleSystemCommand(action string) {
 		}
 	}
 }
+
+func openURL(target string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+
+		cmd = exec.Command("cmd", "/c", "start", target)
+	case "darwin":
+		cmd = exec.Command("open", target)
+	default: // linux
+		cmd = exec.Command("xdg-open", target)
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Printf("Failed to open URL: %v", err)
+	}
+}

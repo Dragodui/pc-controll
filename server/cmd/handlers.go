@@ -78,6 +78,8 @@ func processCommand(cmd Command, conn *websocket.Conn) {
 		robotgo.KeyTap(cmd.Value)
 	case "system":
 		handleSystemCommand(cmd.Value)
+	case "open_url":
+		openURL(cmd.Value)
 	case "clipboard_set":
 		robotgo.WriteAll(cmd.Value)
 	case "clipboard_get":
