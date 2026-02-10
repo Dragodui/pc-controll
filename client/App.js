@@ -9,9 +9,11 @@ import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import Zeroconf from 'react-native-zeroconf';
 import { 
-  Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search 
+  Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search,
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Power, RotateCcw, Lock, Moon, Copy, Download
 } from 'lucide-react-native';
 
 const SERVER_PORT = 1212;
@@ -28,6 +30,8 @@ export default function App() {
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isSensModalVisible, setSensModalVisible] = useState(false);
   const [isPassPromptVisible, setPassPromptVisible] = useState(false);
+  const [isMediaModalVisible, setMediaModalVisible] = useState(false);
+  const [isSystemModalVisible, setSystemModalVisible] = useState(false);
 
   const [newIp, setNewIp] = useState('');
   const [newPass, setNewPass] = useState('');
@@ -201,6 +205,14 @@ export default function App() {
     ws.current.onopen = () => { setStatus('Connected'); setCurrentScreen('control'); };
     ws.current.onclose = () => setStatus('Offline');
     ws.current.onerror = () => setStatus('Error');
+    ws.current.onmessage = async (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'clipboard') {
+        await Clipboard.setStringAsync(data.value);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Clipboard", "PC Clipboard copied to Phone");
+      }
+    };
   };
 
   const send = (data) => {
@@ -222,6 +234,18 @@ export default function App() {
     send({ type: 'key_down', key: 'command' });
     send({ type: 'tap', key: 'space' });
     send({ type: 'key_up', key: 'command' });
+  };
+
+  const copyToPC = async () => {
+    const text = await Clipboard.getStringAsync();
+    if (text) {
+      send({ type: 'clipboard_set', value: text });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  };
+
+  const getFromPC = () => {
+    send({ type: 'clipboard_get' });
   };
 
   // Smoothing Loop
@@ -351,11 +375,18 @@ export default function App() {
             <Text style={styles.brand}>{activeDevice?.name}</Text>
             <Text style={[styles.statusSmall, {color: status === 'Connected' ? '#00ff00' : '#ff4444'}]}>{status}</Text>
           </View>
-          <View style={{ flexDirection:'row'}}>
-            <TouchableOpacity onPress={switchLang} style={{marginRight: 20}}><Languages color="#fff" size={24} /></TouchableOpacity>
-            <TouchableOpacity onPress={() => inputRef.current?.focus()} style={{marginRight: 20}}><KeyboardIcon color="#fff" size={24} /></TouchableOpacity>
-            <TouchableOpacity onPress={() => setSensModalVisible(true)}><Settings color="#fff" size={24} /></TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={() => setSystemModalVisible(true)}>
+            <Power color="#ff3b30" size={28} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.toolBar}>
+          <TouchableOpacity onPress={switchLang}><Languages color="#fff" size={24} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => inputRef.current?.focus()}><KeyboardIcon color="#fff" size={24} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setMediaModalVisible(true)}><Play color="#fff" size={24} /></TouchableOpacity>
+          <TouchableOpacity onPress={copyToPC}><Copy color="#fff" size={24} /></TouchableOpacity>
+          <TouchableOpacity onPress={getFromPC}><Download color="#fff" size={24} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setSensModalVisible(true)}><Settings color="#fff" size={24} /></TouchableOpacity>
         </View>
 
         <TextInput ref={inputRef} style={styles.hiddenInput} value={keyboardValue} onChangeText={handleType} onKeyPress={(e) => {
@@ -376,6 +407,53 @@ export default function App() {
             <View style={styles.switchBar}><Text style={styles.btnText}>Enter</Text></View>
           </TouchableOpacity>
         </View>
+
+        {/* Media Modal */}
+        <Modal visible={isMediaModalVisible} animationType="slide" transparent>
+          <View style={styles.modalFull}>
+            <View style={styles.modalBox}>
+              <View style={styles.mediaRow}>
+                <TouchableOpacity onPress={() => send({type:'media', value:'audio_prev'})}><SkipBack color="#fff" size={32} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => send({type:'media', value:'audio_play_pause'})}><Play color="#fff" size={48} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => send({type:'media', value:'audio_next'})}><SkipForward color="#fff" size={32} /></TouchableOpacity>
+              </View>
+              <View style={[styles.mediaRow, {marginTop: 30}]}>
+                <TouchableOpacity onPress={() => send({type:'media', value:'audio_vol_down'})}><VolumeX color="#fff" size={32} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => send({type:'media', value:'audio_mute'})}><Volume2 color="#fff" size={32} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => send({type:'media', value:'audio_vol_up'})}><Volume2 color="#fff" size={32} /></TouchableOpacity>
+              </View>
+              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#333', width: '100%', marginTop: 30}]} onPress={() => setMediaModalVisible(false)}>
+                <Text style={{color:'#fff'}}>CLOSE</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* System Modal */}
+        <Modal visible={isSystemModalVisible} animationType="fade" transparent>
+          <View style={styles.modalFull}>
+            <View style={styles.modalBox}>
+              <Text style={[styles.modalLabel, {textAlign:'center', fontSize: 16, marginBottom: 20}]}>SYSTEM ACTIONS</Text>
+              <View style={styles.sysGrid}>
+                <TouchableOpacity style={styles.sysBtn} onPress={() => { Alert.alert("Shutdown", "Are you sure?", [{text:"Cancel"}, {text:"OK", onPress:()=>send({type:'system', value:'shutdown'})}]) }}>
+                  <Power color="#ff3b30" size={32} /><Text style={styles.sysText}>Power Off</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sysBtn} onPress={() => send({type:'system', value:'restart'})}>
+                  <RotateCcw color="#007AFF" size={32} /><Text style={styles.sysText}>Restart</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sysBtn} onPress={() => send({type:'system', value:'lock'})}>
+                  <Lock color="#fff" size={32} /><Text style={styles.sysText}>Lock</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sysBtn} onPress={() => send({type:'system', value:'sleep'})}>
+                  <Moon color="#fff" size={32} /><Text style={styles.sysText}>Sleep</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#333', width: '100%', marginTop: 20}]} onPress={() => setSystemModalVisible(false)}>
+                <Text style={{color:'#fff'}}>CANCEL</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         <Modal visible={isSensModalVisible} animationType="fade" transparent>
           <View style={styles.modalFull}>
@@ -409,17 +487,22 @@ const styles = StyleSheet.create({
   devNameText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   devIpText: { color: '#444', fontSize: 13 },
   fab: { position: 'absolute', right: 30, bottom: 40, backgroundColor: '#007AFF', width: 64, height: 64, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  headerControl: { flexDirection: 'row', justifyContent: 'space-between', padding: 25, alignItems: 'center' },
+  headerControl: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, alignItems: 'center' },
   brand: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   statusSmall: { fontSize: 10, textTransform: 'uppercase' },
+  toolBar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 15, paddingHorizontal: 10, backgroundColor: '#050505', marginTop: 15, marginHorizontal: 20, borderRadius: 20 },
   touchpad: { flex: 1, margin: 20, borderRadius: 50, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
-  bottomPanel: { paddingBottom: 40, paddingHorizontal: 20, display:"flex",flexDirection:"column", gap:20 },
-  switchBar: { backgroundColor: '#111', height: 70, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  bottomPanel: { paddingBottom: 40, paddingHorizontal: 20, display:"flex",flexDirection:"column", gap:15 },
+  switchBar: { backgroundColor: '#111', height: 60, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: 'bold' },
-  modalFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  modalFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalBox: { backgroundColor: '#111', width: '85%', padding: 25, borderRadius: 30 },
   modalLabel: { color: '#444', fontSize: 10, marginBottom: 8, fontWeight: 'bold', marginTop: 10 },
   input: { backgroundColor: '#1a1a1a', color: '#fff', padding: 15, borderRadius: 15, marginBottom: 15 },
   mBtn: { padding: 15, borderRadius: 15, alignItems: 'center' },
-  hiddenInput: { opacity: 0, position: 'absolute' }
+  hiddenInput: { opacity: 0, position: 'absolute' },
+  mediaRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  sysGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  sysBtn: { width: '45%', backgroundColor: '#1a1a1a', padding: 20, borderRadius: 20, alignItems: 'center', marginBottom: 15 },
+  sysText: { color: '#fff', marginTop: 10, fontSize: 12, fontWeight: 'bold' }
 });
