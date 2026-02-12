@@ -15,7 +15,7 @@ import { SensitivityModal } from '../components/modals/SensitivityModal';
 
 export const ControlScreen = ({
   activeDevice, status, ws, setCurrentScreen, setActiveDevice, send,
-  inputRef, trackpadGesture,
+  inputRef, trackpadGesture, altTabGesture,
   isMediaModalVisible, setMediaModalVisible,
   isSystemModalVisible, setSystemModalVisible,
   isSensModalVisible, setSensModalVisible,
@@ -67,10 +67,12 @@ export const ControlScreen = ({
         </GestureDetector>
         
         <View style={theme.bottomPanel}>
-           <TouchableOpacity onPress={() => { send({ type: 'key_down', key: 'alt' }); setTimeout(() => { send({ type: 'tap', key: 'tab' }); send({ type: 'key_up', key: 'alt' }); }, 100); }}>
-            <View style={theme.switchBar}><Text style={theme.btnText}>ALT + TAB</Text></View>
-          </TouchableOpacity>
-           <TouchableOpacity onPress={() => send({type:'tap', key:'enter'})}>
+          <GestureDetector gesture={altTabGesture}>
+            <View style={theme.switchBar}>
+              <Text style={theme.btnText}>{'<'}  ALT + TAB  {'>'}</Text>
+            </View>
+          </GestureDetector>
+          <TouchableOpacity onPress={() => send({type:'tap', key:'enter'})}>
             <View style={theme.switchBar}><Text style={theme.btnText}>Enter</Text></View>
           </TouchableOpacity>
         </View>

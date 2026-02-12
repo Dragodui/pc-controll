@@ -46,6 +46,7 @@ export default function App() {
   const pendingScroll = useRef({ x: 0, y: 0 });
   const smoothMove = useRef({ x: 0, y: 0 });
   const smoothScroll = useRef({ x: 0, y: 0 });
+  const altTabStep = useRef(0);
 
   useEffect(() => { loadData(); }, []);
 
@@ -110,6 +111,39 @@ export default function App() {
     Gesture.Exclusive(scrollGesture, rightClickGesture)
   );
 
+  // ALT+TAB swipe gesture
+  const altTabGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onBegin(() => {
+      altTabStep.current = 0;
+      send({ type: 'key_down', key: 'alt' });
+      send({ type: 'tap', key: 'tab' });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    })
+    .onChange((e) => {
+      const step = Math.round(e.translationX / 70);
+      if (step !== altTabStep.current) {
+        const diff = step - altTabStep.current;
+        if (diff > 0) {
+          for (let i = 0; i < diff; i++) send({ type: 'tap', key: 'tab' });
+        } else {
+          for (let i = 0; i < -diff; i++) {
+            send({ type: 'key_down', key: 'shift' });
+            send({ type: 'tap', key: 'tab' });
+            send({ type: 'key_up', key: 'shift' });
+          }
+        }
+        altTabStep.current = step;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    })
+    .onEnd(() => {
+      send({ type: 'key_up', key: 'alt' });
+    })
+    .onFinalize(() => {
+      send({ type: 'key_up', key: 'alt' });
+    });
+
   if (currentScreen === 'list') {
     return (
       <DeviceList 
@@ -139,7 +173,7 @@ export default function App() {
     <ControlScreen 
       activeDevice={activeDevice} status={status} ws={ws} send={send}
       setCurrentScreen={setCurrentScreen} setActiveDevice={setActiveDevice}
-      inputRef={inputRef} trackpadGesture={trackpadGesture}
+      inputRef={inputRef} trackpadGesture={trackpadGesture} altTabGesture={altTabGesture}
       isMediaModalVisible={isMediaModalVisible} setMediaModalVisible={setMediaModalVisible}
       isSystemModalVisible={isSystemModalVisible} setSystemModalVisible={setSystemModalVisible}
       isSensModalVisible={isSensModalVisible} setSensModalVisible={setSensModalVisible}
