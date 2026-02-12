@@ -16,7 +16,7 @@ const APPS = [
   { 
     name: 'Discord', 
     url: 'discord://', 
-    image: { uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Discord_Logo_sans_text.svg/1200px-Discord_Logo_sans_text.svg.png' }
+    image: { uri: 'https://medialarts.pl/wp-content/uploads/Discord-Symbol-Blurple-300x227.png' }
   },
   { 
     name: 'Steam', 

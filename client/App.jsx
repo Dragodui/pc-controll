@@ -117,7 +117,7 @@ export default function App() {
         isScanning={isScanning} smartScan={smartScan}
         handleDevicePress={(device) => {
           if (!device.pass) { setTempDevice(device); setPassPromptVisible(true); }
-          else connectToDevice(device);
+          else { setActiveDevice(device); connectToDevice(device); }
         }}
         isAddModalVisible={isAddModalVisible} setAddModalVisible={setAddModalVisible}
         newIp={newIp} setNewIp={setNewIp} newPort={newPort} setNewPort={setNewPort}
@@ -128,7 +128,7 @@ export default function App() {
           const updated = { ...tempDevice, pass: promptPass };
           const list = devices.map(d => d.id === tempDevice.id ? updated : d);
           setDevices(list); await AsyncStorage.setItem('devices', JSON.stringify(list));
-          setPassPromptVisible(false); setPromptPass(''); connectToDevice(updated);
+          setPassPromptVisible(false); setPromptPass(''); setActiveDevice(updated); connectToDevice(updated);
         }}
         tempDevice={tempDevice}
       />
