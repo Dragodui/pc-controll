@@ -24,6 +24,7 @@ export const ControlScreen = ({
   smoothFactor, setSmoothFactor
 }) => {
   const [isLauncherVisible, setLauncherVisible] = React.useState(false);
+  const lastInputText = React.useRef('');
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -56,9 +57,21 @@ export const ControlScreen = ({
         </View>
 
         <TextInput ref={inputRef} style={theme.hiddenInput} onChangeText={(text) => {
-          if (text) { send({ type: 'type_string', value: text }); inputRef.current?.clear(); }
+          const prev = lastInputText.current;
+          if (text.length > prev.length) {
+            const newChars = text.slice(prev.length);
+            send({ type: 'type_string', value: newChars });
+          }
+          lastInputText.current = text;
+          if (text.length > 30) {
+            inputRef.current?.clear();
+            lastInputText.current = '';
+          }
         }} onKeyPress={(e) => {
-          if(e.nativeEvent.key === 'Backspace') send({type:'tap', key:'backspace'});
+          if(e.nativeEvent.key === 'Backspace') {
+            lastInputText.current = lastInputText.current.slice(0, -1);
+            send({type:'tap', key:'backspace'});
+          }
           if(e.nativeEvent.key === 'Enter') send({type:'tap', key:'enter'});
         }} autoCorrect={false} autoCapitalize="none" />
 
