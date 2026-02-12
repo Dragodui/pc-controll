@@ -21,7 +21,7 @@ COPY . .
 
 # Build the application
 # CGO_ENABLED=1 is required for robotgo
-RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/*
 
 # Use a lightweight Alpine image for the final container
 FROM alpine:latest
