@@ -10,8 +10,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
 import Zeroconf from 'react-native-zeroconf';
-import { 
-  Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search 
+import {
+  Keyboard as KeyboardIcon, Settings, Monitor, Trash2, Languages, Plus, ChevronLeft, Wifi, WifiOff, Search
 } from 'lucide-react-native';
 
 const SERVER_PORT = 1212;
@@ -24,7 +24,7 @@ export default function App() {
   const [devices, setDevices] = useState([]);
   const [activeDevice, setActiveDevice] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
-  
+
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isSensModalVisible, setSensModalVisible] = useState(false);
   const [isPassPromptVisible, setPassPromptVisible] = useState(false);
@@ -40,7 +40,7 @@ export default function App() {
   const [scrollSensitivity, setScrollSensitivity] = useState(0.5);
   const [smoothFactor, setSmoothFactor] = useState(0.7);
   const [deadzone, setDeadzone] = useState(0.6);
-  
+
   const [keyboardValue, setKeyboardValue] = useState('');
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const [lastOffset, setLastOffset] = useState(0);
@@ -57,7 +57,7 @@ export default function App() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (
-        appState.current.match(/inactive|background/) && 
+        appState.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
         if (activeDevice && (!ws.current || ws.current.readyState !== WebSocket.OPEN)) {
@@ -273,16 +273,36 @@ export default function App() {
   );
 
   const switcherGesture = Gesture.Pan()
-    .onStart(() => { setLastOffset(0); setIsSwitcherActive(true); send({ type: 'key_down', key: 'alt' }); setTimeout(() => send({ type: 'tap', key: 'tab' }), 50); })
-    .onUpdate((e) => {
-      const diff = e.translationX - lastOffset;
-      if (Math.abs(diff) > 50) {
-        if (diff > 0) send({ type: 'tap', key: 'tab' });
-        else { send({ type: 'key_down', key: 'shift' }); send({ type: 'tap', key: 'tab' }); send({ type: 'key_up', key: 'shift' }); }
-        Haptics.selectionAsync(); setLastOffset(e.translationX);
+    .activeOffsetX([-10, 10])
+    .onBegin(() => {
+      altTabStep.current = 0;
+      send({ type: 'key_down', key: 'alt' });
+      send({ type: 'tap', key: 'tab' });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    })
+    .onChange((e) => {
+      const step = Math.round(e.translationX / 70);
+      if (step !== altTabStep.current) {
+        const diff = step - altTabStep.current;
+        if (diff > 0) {
+          for (let i = 0; i < diff; i++) send({ type: 'tap', key: 'tab' });
+        } else {
+          for (let i = 0; i < -diff; i++) {
+            send({ type: 'key_down', key: 'shift' });
+            send({ type: 'tap', key: 'tab' });
+            send({ type: 'key_up', key: 'shift' });
+          }
+        }
+        altTabStep.current = step;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     })
-    .onEnd(() => { setIsSwitcherActive(false); send({ type: 'key_up', key: 'alt' }); });
+    .onEnd(() => {
+      send({ type: 'key_up', key: 'alt' });
+    })
+    .onFinalize(() => {
+      send({ type: 'key_up', key: 'alt' });
+    });
 
   if (currentScreen === 'list') {
     return (
@@ -299,7 +319,7 @@ export default function App() {
             <TouchableOpacity key={dev.id} style={styles.devCard} onPress={() => handleDevicePress(dev)}>
               <View style={styles.devInfo}>
                 <Monitor color={dev.online ? "#00ff00" : "#444"} size={30} />
-                <View style={{marginLeft: 15}}>
+                <View style={{ marginLeft: 15 }}>
                   <Text style={styles.devNameText}>{dev.name}</Text>
                   <Text style={styles.devIpText}>{dev.ip}:{dev.port}</Text>
                 </View>
@@ -312,13 +332,13 @@ export default function App() {
           ))}
         </ScrollView>
         <TouchableOpacity style={styles.fab} onPress={() => setAddModalVisible(true)}><Plus color="#fff" size={32} /></TouchableOpacity>
-        
+
         <Modal visible={isPassPromptVisible} animationType="fade" transparent>
           <View style={styles.modalFull}><View style={styles.modalBox}>
             <Text style={styles.modalLabel}>ENTER PASSWORD FOR {tempDevice?.name}</Text>
             <TextInput style={styles.input} secureTextEntry value={promptPass} onChangeText={setPromptPass} autoFocus />
-            <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%'}]} onPress={savePasswordAndConnect}>
-              <Text style={{color:'#fff', fontWeight:'bold'}}>CONNECT</Text>
+            <TouchableOpacity style={[styles.mBtn, { backgroundColor: '#007AFF', width: '100%' }]} onPress={savePasswordAndConnect}>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>CONNECT</Text>
             </TouchableOpacity>
           </View></View>
         </Modal>
@@ -328,11 +348,11 @@ export default function App() {
             <TextInput style={styles.input} placeholder="IP" value={newIp} onChangeText={setNewIp} keyboardType="numeric" />
             <TextInput style={styles.input} placeholder="Port" value={newPort} onChangeText={setNewPort} keyboardType="numeric" />
             <TextInput style={styles.input} placeholder="Pass" value={newPass} onChangeText={setNewPass} secureTextEntry />
-            <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%'}]} onPress={async () => {
+            <TouchableOpacity style={[styles.mBtn, { backgroundColor: '#007AFF', width: '100%' }]} onPress={async () => {
               const d = { id: Date.now().toString(), name: 'Manual', ip: newIp, port: parseInt(newPort), pass: newPass, online: false };
               const upd = [...devices, d]; setDevices(upd);
               AsyncStorage.setItem('devices', JSON.stringify(upd)); setAddModalVisible(false);
-            }}><Text style={{color:'#fff', fontWeight:'bold'}}>ADD</Text></TouchableOpacity>
+            }}><Text style={{ color: '#fff', fontWeight: 'bold' }}>ADD</Text></TouchableOpacity>
           </View></View>
         </Modal>
       </View>
@@ -347,32 +367,32 @@ export default function App() {
           <TouchableOpacity onPress={() => { ws.current?.close(); setCurrentScreen('list'); setActiveDevice(null); }}>
             <ChevronLeft color="#fff" size={32} />
           </TouchableOpacity>
-          <View style={{alignItems:'center'}}>
+          <View style={{ alignItems: 'center' }}>
             <Text style={styles.brand}>{activeDevice?.name}</Text>
-            <Text style={[styles.statusSmall, {color: status === 'Connected' ? '#00ff00' : '#ff4444'}]}>{status}</Text>
+            <Text style={[styles.statusSmall, { color: status === 'Connected' ? '#00ff00' : '#ff4444' }]}>{status}</Text>
           </View>
-          <View style={{ flexDirection:'row'}}>
-            <TouchableOpacity onPress={switchLang} style={{marginRight: 20}}><Languages color="#fff" size={24} /></TouchableOpacity>
-            <TouchableOpacity onPress={() => inputRef.current?.focus()} style={{marginRight: 20}}><KeyboardIcon color="#fff" size={24} /></TouchableOpacity>
+          <View style={{ flexDirection: 'row' }}>
+            <TouchableOpacity onPress={switchLang} style={{ marginRight: 20 }}><Languages color="#fff" size={24} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => inputRef.current?.focus()} style={{ marginRight: 20 }}><KeyboardIcon color="#fff" size={24} /></TouchableOpacity>
             <TouchableOpacity onPress={() => setSensModalVisible(true)}><Settings color="#fff" size={24} /></TouchableOpacity>
           </View>
         </View>
 
         <TextInput ref={inputRef} style={styles.hiddenInput} value={keyboardValue} onChangeText={handleType} onKeyPress={(e) => {
-          if(e.nativeEvent.key === 'Backspace') send({type:'tap', key:'backspace'});
-          if(e.nativeEvent.key === 'Enter') send({type:'tap', key:'enter'});
+          if (e.nativeEvent.key === 'Backspace') send({ type: 'tap', key: 'backspace' });
+          if (e.nativeEvent.key === 'Enter') send({ type: 'tap', key: 'enter' });
         }} autoCorrect={false} autoCapitalize="none" />
 
         <GestureDetector gesture={trackpadGesture}>
           <View style={styles.touchpad}><Monitor color="#0a0a0a" size={120} /></View>
         </GestureDetector>
-        
+
         <View style={styles.bottomPanel}>
           <GestureDetector gesture={switcherGesture}>
             <View style={styles.switchBar}><Text style={styles.btnText}>ALT + TAB</Text></View>
           </GestureDetector>
 
-           <TouchableOpacity onPress={() => send({type:'tap', key:'enter'})}>
+          <TouchableOpacity onPress={() => send({ type: 'tap', key: 'enter' })}>
             <View style={styles.switchBar}><Text style={styles.btnText}>Enter</Text></View>
           </TouchableOpacity>
         </View>
@@ -381,15 +401,15 @@ export default function App() {
           <View style={styles.modalFull}>
             <View style={styles.modalBox}>
               <Text style={styles.modalLabel}>SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
-              <Slider style={{width:'100%', height:40}} minimumValue={0.5} maximumValue={5} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={val => AsyncStorage.setItem('sensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
-              
+              <Slider style={{ width: '100%', height: 40 }} minimumValue={0.5} maximumValue={5} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={val => AsyncStorage.setItem('sensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
+
               <Text style={styles.modalLabel}>SCROLL SPEED: {scrollSensitivity.toFixed(1)}x</Text>
-              <Slider style={{width:'100%', height:40}} minimumValue={0.1} maximumValue={3} value={scrollSensitivity} onValueChange={setScrollSensitivity} onSlidingComplete={val => AsyncStorage.setItem('scrollSensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
+              <Slider style={{ width: '100%', height: 40 }} minimumValue={0.1} maximumValue={3} value={scrollSensitivity} onValueChange={setScrollSensitivity} onSlidingComplete={val => AsyncStorage.setItem('scrollSensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
 
               <Text style={styles.modalLabel}>SMOOTHING: {smoothFactor.toFixed(2)}</Text>
-              <Slider style={{width:'100%', height:40}} minimumValue={0} maximumValue={0.9} value={smoothFactor} onValueChange={setSmoothFactor} onSlidingComplete={val => AsyncStorage.setItem('smoothFactor', val.toString())} minimumTrackTintColor="#007AFF" />
-              <TouchableOpacity style={[styles.mBtn, {backgroundColor: '#007AFF', width: '100%', marginTop: 20}]} onPress={() => setSensModalVisible(false)}>
-                <Text style={{color:'#fff', fontWeight:'bold'}}>DONE</Text>
+              <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={0.9} value={smoothFactor} onValueChange={setSmoothFactor} onSlidingComplete={val => AsyncStorage.setItem('smoothFactor', val.toString())} minimumTrackTintColor="#007AFF" />
+              <TouchableOpacity style={[styles.mBtn, { backgroundColor: '#007AFF', width: '100%', marginTop: 20 }]} onPress={() => setSensModalVisible(false)}>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -413,7 +433,7 @@ const styles = StyleSheet.create({
   brand: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   statusSmall: { fontSize: 10, textTransform: 'uppercase' },
   touchpad: { flex: 1, margin: 20, borderRadius: 50, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
-  bottomPanel: { paddingBottom: 40, paddingHorizontal: 20, display:"flex",flexDirection:"column", gap:20 },
+  bottomPanel: { paddingBottom: 40, paddingHorizontal: 20, display: "flex", flexDirection: "column", gap: 20 },
   switchBar: { backgroundColor: '#111', height: 70, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: 'bold' },
   modalFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
