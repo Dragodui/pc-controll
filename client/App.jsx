@@ -41,12 +41,12 @@ export default function App() {
   const [smoothFactor, setSmoothFactor] = useState(0.7);
   const [deadzone, setDeadzone] = useState(0.6);
 
-  const [keyboardValue, setKeyboardValue] = useState('');
   const [isSwitcherActive, setIsSwitcherActive] = useState(false);
   const [lastOffset, setLastOffset] = useState(0);
 
   const ws = useRef(null);
   const inputRef = useRef(null);
+  const prevInputText = useRef('');
   const pendingMove = useRef({ x: 0, y: 0 });
   const pendingScroll = useRef({ x: 0, y: 0 });
   const smoothMove = useRef({ x: 0, y: 0 });
@@ -210,9 +210,13 @@ export default function App() {
   };
 
   const handleType = (text) => {
-    if (text) {
-      send({ type: 'type_string', value: text });
-      setKeyboardValue('');
+    const prev = prevInputText.current;
+    if (text.length > prev.length) {
+      const newChars = text.slice(prev.length);
+      send({ type: 'type_string', value: newChars });
+    }
+    prevInputText.current = text;
+    if (text.length > 30) {
       inputRef.current?.clear();
     }
   };
@@ -378,7 +382,7 @@ export default function App() {
           </View>
         </View>
 
-        <TextInput ref={inputRef} style={styles.hiddenInput} value={keyboardValue} onChangeText={handleType} onKeyPress={(e) => {
+        <TextInput ref={inputRef} style={styles.hiddenInput} onChangeText={handleType} onKeyPress={(e) => {
           if (e.nativeEvent.key === 'Backspace') send({ type: 'tap', key: 'backspace' });
           if (e.nativeEvent.key === 'Enter') send({ type: 'tap', key: 'enter' });
         }} autoCorrect={false} autoCapitalize="none" />
@@ -398,6 +402,7 @@ export default function App() {
         </View>
 
         <Modal visible={isSensModalVisible} animationType="fade" transparent>
+          <GestureHandlerRootView style={{ flex: 1 }}>
           <View style={styles.modalFull}>
             <View style={styles.modalBox}>
               <Text style={styles.modalLabel}>SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
@@ -413,6 +418,7 @@ export default function App() {
               </TouchableOpacity>
             </View>
           </View>
+          </GestureHandlerRootView>
         </Modal>
       </View>
     </GestureHandlerRootView>
