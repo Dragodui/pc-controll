@@ -41,8 +41,7 @@ export default function App() {
   const [smoothFactor, setSmoothFactor] = useState(0.7);
   const [deadzone, setDeadzone] = useState(0.6);
 
-  const [isSwitcherActive, setIsSwitcherActive] = useState(false);
-  const [lastOffset, setLastOffset] = useState(0);
+  const altTabStep = useRef(0);
 
   const ws = useRef(null);
   const inputRef = useRef(null);
@@ -300,9 +299,6 @@ export default function App() {
         altTabStep.current = step;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-    })
-    .onEnd(() => {
-      send({ type: 'key_up', key: 'alt' });
     })
     .onFinalize(() => {
       send({ type: 'key_up', key: 'alt' });
