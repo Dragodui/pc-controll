@@ -1,5 +1,6 @@
 services:
   server:
+    restart: always
     build: .
     container_name: pc-control-server
     # Host networking is required for mDNS discovery
