@@ -48,8 +48,8 @@ export default function App() {
   const prevInputText = useRef('');
   const pendingMove = useRef({ x: 0, y: 0 });
   const pendingScroll = useRef({ x: 0, y: 0 });
+  const scrollAccum = useRef(0);
   const smoothMove = useRef({ x: 0, y: 0 });
-  const smoothScroll = useRef({ x: 0, y: 0 });
   const zeroconfRef = useRef(null);
   const appState = useRef(AppState.currentState);
 
@@ -242,9 +242,18 @@ export default function App() {
         send({ type: 'move', x: smoothMove.current.x, y: smoothMove.current.y });
       }
       if (scroll.y !== 0) {
-        const alpha = 1 - smoothFactor;
-        smoothScroll.current.y = smoothScroll.current.y * smoothFactor + scroll.y * alpha;
-        send({ type: 'scroll', x: 0, y: smoothScroll.current.y });
+        scrollAccum.current += scroll.y;
+      }
+      if (scrollAccum.current !== 0) {
+        const PIXELS_PER_TICK = 18;
+        const ticks = Math.trunc(scrollAccum.current / PIXELS_PER_TICK);
+        if (ticks !== 0) {
+          const clamped = Math.max(-3, Math.min(3, ticks));
+          send({ type: 'scroll', x: 0, y: clamped });
+          scrollAccum.current -= ticks * PIXELS_PER_TICK;
+        }
+        scrollAccum.current *= 0.85;
+        if (Math.abs(scrollAccum.current) < 0.5) scrollAccum.current = 0;
       }
     }, 16);
     return () => clearInterval(interval);
@@ -265,7 +274,7 @@ export default function App() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   });
 
-  const rightClickGesture = Gesture.Tap().minPointers(2).onEnd(() => {
+  const rightClickGesture = Gesture.Tap().minPointers(2).maxDuration(250).maxDistance(15).onEnd(() => {
     send({ type: 'click', button: 'right' });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   });
@@ -360,6 +369,7 @@ export default function App() {
   }
 
   return (
+    <>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
@@ -397,27 +407,27 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        <Modal visible={isSensModalVisible} animationType="fade" transparent>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={styles.modalFull}>
-            <View style={styles.modalBox}>
-              <Text style={styles.modalLabel}>SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
-              <Slider style={{ width: '100%', height: 40 }} minimumValue={0.5} maximumValue={5} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={val => AsyncStorage.setItem('sensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
-
-              <Text style={styles.modalLabel}>SCROLL SPEED: {scrollSensitivity.toFixed(1)}x</Text>
-              <Slider style={{ width: '100%', height: 40 }} minimumValue={0.1} maximumValue={3} value={scrollSensitivity} onValueChange={setScrollSensitivity} onSlidingComplete={val => AsyncStorage.setItem('scrollSensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
-
-              <Text style={styles.modalLabel}>SMOOTHING: {smoothFactor.toFixed(2)}</Text>
-              <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={0.9} value={smoothFactor} onValueChange={setSmoothFactor} onSlidingComplete={val => AsyncStorage.setItem('smoothFactor', val.toString())} minimumTrackTintColor="#007AFF" />
-              <TouchableOpacity style={[styles.mBtn, { backgroundColor: '#007AFF', width: '100%', marginTop: 20 }]} onPress={() => setSensModalVisible(false)}>
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          </GestureHandlerRootView>
-        </Modal>
       </View>
     </GestureHandlerRootView>
+
+    <Modal visible={isSensModalVisible} animationType="fade" transparent onRequestClose={() => setSensModalVisible(false)}>
+      <View style={styles.modalFull}>
+        <View style={styles.modalBox}>
+          <Text style={styles.modalLabel}>SENSITIVITY: {sensitivity.toFixed(1)}x</Text>
+          <Slider style={{ width: '100%', height: 40 }} minimumValue={0.5} maximumValue={5} step={0.1} value={sensitivity} onValueChange={setSensitivity} onSlidingComplete={val => AsyncStorage.setItem('sensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
+
+          <Text style={styles.modalLabel}>SCROLL SPEED: {scrollSensitivity.toFixed(1)}x</Text>
+          <Slider style={{ width: '100%', height: 40 }} minimumValue={0.1} maximumValue={3} step={0.1} value={scrollSensitivity} onValueChange={setScrollSensitivity} onSlidingComplete={val => AsyncStorage.setItem('scrollSensitivity', val.toString())} minimumTrackTintColor="#007AFF" />
+
+          <Text style={styles.modalLabel}>SMOOTHING: {smoothFactor.toFixed(2)}</Text>
+          <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={0.9} step={0.05} value={smoothFactor} onValueChange={setSmoothFactor} onSlidingComplete={val => AsyncStorage.setItem('smoothFactor', val.toString())} minimumTrackTintColor="#007AFF" />
+          <TouchableOpacity style={[styles.mBtn, { backgroundColor: '#007AFF', width: '100%', marginTop: 20 }]} onPress={() => setSensModalVisible(false)}>
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
