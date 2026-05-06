@@ -2,7 +2,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet, Text, View, StatusBar, TextInput,
-  TouchableOpacity, Modal, ScrollView, ActivityIndicator, Alert, AppState
+  TouchableOpacity, Modal, ScrollView, ActivityIndicator, Alert, AppState,
+  PermissionsAndroid, Platform
 } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Slider from '@react-native-community/slider';
@@ -52,6 +53,21 @@ export default function App() {
   const smoothMove = useRef({ x: 0, y: 0 });
   const zeroconfRef = useRef(null);
   const appState = useRef(AppState.currentState);
+
+  const ensureAndroidDiscoveryPermissions = async () => {
+    if (Platform.OS !== 'android') return true;
+
+    const permissions = [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+
+    if (Platform.Version >= 33 && PermissionsAndroid.PERMISSIONS.NEARBY_WIFI_DEVICES) {
+      permissions.push(PermissionsAndroid.PERMISSIONS.NEARBY_WIFI_DEVICES);
+    }
+
+    const results = await PermissionsAndroid.requestMultiple(permissions);
+    return permissions.every(
+      (permission) => results[permission] === PermissionsAndroid.RESULTS.GRANTED
+    );
+  };
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -139,6 +155,15 @@ export default function App() {
     setIsScanning(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      const hasPermissions = await ensureAndroidDiscoveryPermissions();
+      if (!hasPermissions) {
+        Alert.alert(
+          'Permission needed',
+          'Android needs location or nearby devices permission for local network discovery.'
+        );
+        return;
+      }
+
       const mdnsDevices = await mdnsDiscover();
       const ipAddr = await Network.getIpAddressAsync();
       const subnet = ipAddr.substring(0, ipAddr.lastIndexOf('.'));
