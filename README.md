@@ -1,6 +1,6 @@
 # PC Control App
 
-A remote control application for Linux (X11) using a Go server and a React Native mobile client.
+A remote control application for Linux using a Go server and a React Native mobile client.
 
 ## Features
 
@@ -16,7 +16,11 @@ A remote control application for Linux (X11) using a Go server and a React Nativ
 
 ## Server Setup (Linux)
 
-The server requires X11 to simulate mouse and keyboard events.
+The server now selects the input backend automatically:
+
+- `Wayland` on Linux: uses CLI tools.
+- `X11` on Linux: uses `robotgo`.
+- Other systems: keeps using `robotgo`.
 
 ### 1. Configuration
 Navigate to the `server` directory and create a `.env` file:
@@ -32,21 +36,65 @@ WS_PORT=1212
 SERVER_PASSWORD=1234
 ```
 
-### 2. Permissions (X11)
-Since the server runs in Docker, you must allow it to access your display:
+### 2. Choose the backend requirements
+
+#### Wayland
+Install the CLI tools used by the server:
+
+```bash
+sudo apt install ydotool wtype
+```
+
+Fedora/RHEL:
+
+```bash
+sudo dnf install ydotool wtype
+```
+
+Optional but recommended for pointer scrolling on Wayland:
+
+```bash
+sudo apt install wlrctl
+```
+
+Fedora/RHEL:
+
+```bash
+sudo dnf install wlrctl
+```
+
+Notes:
+- `ydotoold` must be running, because `ydotool` depends on it.
+- If `wlrctl` is missing, move and click still work through `ydotool`, but scroll on Wayland will be unavailable.
+
+#### X11
+If you run under X11, `robotgo` is used as before.
+
+### 3. Permissions (X11 only)
+If you run the X11 path in Docker, you must allow it to access your display:
 ```bash
 xhost +local:docker
 ```
 
-### 3. Run with Docker (Recommended)
+### 4. Run with Docker
 ```bash
 docker compose up -d --build
 ```
 
-### 4. Run without Docker
+Docker is still primarily suitable for the X11 path. For Wayland, running the server directly on the host is the safer option because the CLI tools need access to your real user session and input devices.
+
+### 5. Run without Docker
 If you have Go installed locally, install dependencies and run:
 ```bash
 sudo apt install libx11-dev libxtst-dev libpng-dev # Debian/Ubuntu/PopOS
+go mod download
+go run cmd/main.go
+```
+
+Fedora/RHEL:
+
+```bash
+sudo dnf install libX11-devel libXtst-devel libpng-devel gcc
 go mod download
 go run cmd/main.go
 ```
@@ -79,11 +127,13 @@ Scan the QR code with the **Expo Go** app on your Android or iOS device.
 
 ## Troubleshooting
 
-- **"Could not open main display"**: Ensure you ran `xhost +local:docker`.
+- **"Could not open main display"**: Ensure you ran `xhost +local:docker` and that you are actually on X11.
 - **Connection Timed Out**: Check your PC's firewall. You might need to allow the port:
   ```bash
   sudo ufw allow 1212/tcp
   ```
-- **Scrolling doesn't work**: Ensure your Linux environment uses **X11** (Wayland is currently not supported by `robotgo`).
+- **Wayland input does not work**: Check that `ydotool` is installed and `ydotoold` is running in the same user session.
+- **Wayland scrolling does not work**: Install `wlrctl`.
+- **Need to force a backend**: set `INPUT_BACKEND=robotgo` or `INPUT_BACKEND=wayland-cli`.
 
 ---
