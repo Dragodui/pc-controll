@@ -13,6 +13,9 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	//if err := godotenv.Load(); err != nil {
+	//	return Config{}, err
+	//}
 	cfg := Config{
 		ServerPassword: os.Getenv("SERVER_PASSWORD"),
 		PCName:         os.Getenv("PC_NAME"),

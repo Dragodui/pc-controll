@@ -56,8 +56,14 @@ func newWaylandBackend() Backend {
 		log.Printf("Wayland session detected without 'wtype'. Text typing will use ydotool type.")
 	}
 
-	return WaylandBackend{
-		UseWlrctl: useWlrctl,
-		UseWtype:  useWtype,
+	backend := &WaylandBackend{
+		UseWlrctl:       useWlrctl,
+		UseWtype:        useWtype,
+		activeModifiers: make(map[string]bool),
+		moveNotify:      make(chan struct{}, 1),
 	}
+	if !useWlrctl {
+		backend.startMoveWorker()
+	}
+	return backend
 }

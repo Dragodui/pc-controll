@@ -18,6 +18,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.0 // indirect
 	github.com/jezek/xgb v1.2.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/miekg/dns v1.1.27 // indirect
 	github.com/otiai10/gosseract/v2 v2.4.1 // indirect

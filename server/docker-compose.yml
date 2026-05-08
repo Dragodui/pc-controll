@@ -17,3 +17,9 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ${XAUTHORITY:-$HOME/.Xauthority}:/root/.Xauthority:ro
+      - /usr/bin/ydotool:/usr/local/bin/ydotool:ro
+      - /usr/bin/ydotoold:/usr/local/bin/ydotoold:ro
+    # Required by ydotool for Wayland input injection.
+    # If this device is missing on the host, run: sudo modprobe uinput
+    devices:
+      - /dev/uinput:/dev/uinput
