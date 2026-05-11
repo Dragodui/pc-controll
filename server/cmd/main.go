@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 
-	"github.com/Dragodui/pc-controll/internal/app"
+	"github.com/Dragodui/pc-controll/internal/server"
 )
 
 func main() {
-	if err := app.Run(); err != nil {
+	if err := server.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
