@@ -22,14 +22,14 @@ type WaylandBackend struct {
 	moveNotify      chan struct{}
 }
 
-var ydotoolKeyNames = map[string]string{
-	"alt":       "KEY_LEFTALT",
-	"backspace": "KEY_BACKSPACE",
-	"command":   "KEY_LEFTMETA",
-	"enter":     "KEY_ENTER",
-	"shift":     "KEY_LEFTSHIFT",
-	"space":     "KEY_SPACE",
-	"tab":       "KEY_TAB",
+var ydotoolKeyCodes = map[string]int{
+	"alt":       56,
+	"backspace": 14,
+	"command":   125,
+	"enter":     28,
+	"shift":     42,
+	"space":     57,
+	"tab":       15,
 }
 
 var ydotoolModifierOrder = []string{"command", "alt", "shift"}
@@ -96,15 +96,15 @@ func (b *WaylandBackend) TypeString(value string) error {
 }
 
 func (b *WaylandBackend) Tap(key string) error {
-	keyName, normalizedKey, err := lookupYdotoolKeyName(key)
+	code, _, err := lookupYdotoolKeyCode(key)
 	if err != nil {
 		return err
 	}
-	return runInputCmd("ydotool", "key", b.keySequence(keyName, normalizedKey))
+	return runInputCmd("ydotool", "key", "-d", "0", fmt.Sprintf("%d:1", code), fmt.Sprintf("%d:0", code))
 }
 
 func (b *WaylandBackend) KeyDown(key string) error {
-	_, normalizedKey, err := lookupYdotoolKeyName(key)
+	code, normalizedKey, err := lookupYdotoolKeyCode(key)
 	if err != nil {
 		return err
 	}
@@ -114,11 +114,11 @@ func (b *WaylandBackend) KeyDown(key string) error {
 	b.mu.Lock()
 	b.activeModifiers[normalizedKey] = true
 	b.mu.Unlock()
-	return nil
+	return runInputCmd("ydotool", "key", "-d", "0", fmt.Sprintf("%d:1", code))
 }
 
 func (b *WaylandBackend) KeyUp(key string) error {
-	_, normalizedKey, err := lookupYdotoolKeyName(key)
+	code, normalizedKey, err := lookupYdotoolKeyCode(key)
 	if err != nil {
 		return err
 	}
@@ -128,33 +128,16 @@ func (b *WaylandBackend) KeyUp(key string) error {
 	b.mu.Lock()
 	delete(b.activeModifiers, normalizedKey)
 	b.mu.Unlock()
-	return nil
+	return runInputCmd("ydotool", "key", "-d", "0", fmt.Sprintf("%d:0", code))
 }
 
-func (b *WaylandBackend) keySequence(keyName string, normalizedKey string) string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	parts := make([]string, 0, len(ydotoolModifierOrder)+1)
-	for _, modifier := range ydotoolModifierOrder {
-		if modifier == normalizedKey {
-			continue
-		}
-		if b.activeModifiers[modifier] {
-			parts = append(parts, ydotoolKeyNames[modifier])
-		}
-	}
-	parts = append(parts, keyName)
-	return strings.Join(parts, "+")
-}
-
-func lookupYdotoolKeyName(key string) (string, string, error) {
+func lookupYdotoolKeyCode(key string) (int, string, error) {
 	normalizedKey := strings.ToLower(strings.TrimSpace(key))
-	keyName, ok := ydotoolKeyNames[normalizedKey]
+	code, ok := ydotoolKeyCodes[normalizedKey]
 	if !ok {
-		return "", "", fmt.Errorf("unsupported key for Wayland backend: %s", key)
+		return 0, "", fmt.Errorf("unsupported key for Wayland backend: %s", key)
 	}
-	return keyName, normalizedKey, nil
+	return code, normalizedKey, nil
 }
 
 func isYdotoolModifier(key string) bool {
