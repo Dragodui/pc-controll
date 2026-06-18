@@ -1,45 +1,25 @@
-# Use a base image with Go and necessary build tools
-FROM golang:1.24-alpine AS builder
-
-# Install system dependencies required by robotgo
-RUN apk add --no-cache \
-    gcc \
-    libc-dev \
-    libx11-dev \
-    libxtst-dev \
-    libpng-dev \
-    xorg-server-dev
+FROM golang:1.24-bookworm AS builder
 
 WORKDIR /app
 
-# Copy module files and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the source code
 COPY . .
 
-# Build the application
-# CGO_ENABLED=1 is required for robotgo
-RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/*
+RUN CGO_ENABLED=1 GOOS=linux go build -tags pcinput -o server ./cmd
 
-# Use a lightweight Alpine image for the final container
-FROM alpine:latest
+FROM debian:bookworm-slim
 
-# Install runtime dependencies for X11
-RUN apk add --no-cache \
-    libx11 \
-    libxtst \
-    libpng \
-    xorg-server
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        wl-clipboard \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /root/
+WORKDIR /app
 
-# Copy the binary from the builder stage
 COPY --from=builder /app/server .
 
-# Expose the WebSocket port
-EXPOSE 8080
+EXPOSE 1212
 
-# Run the server
 CMD ["./server"]

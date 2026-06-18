@@ -1,0 +1,26 @@
+import { StyleSheet } from 'react-native';
+
+export const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000', paddingTop: 50 },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 25, alignItems: 'center' },
+  mainTitle: { color: '#fff', fontSize: 32, fontWeight: 'bold' },
+  scroll: { flex: 1, paddingHorizontal: 20 },
+  devCard: { backgroundColor: '#0a0a0a', padding: 20, borderRadius: 25, marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  devInfo: { flexDirection: 'row', alignItems: 'center' },
+  devNameText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  devIpText: { color: '#444', fontSize: 13 },
+  fab: { position: 'absolute', right: 30, bottom: 40, backgroundColor: '#007AFF', width: 64, height: 64, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  headerControl: { flexDirection: 'row', justifyContent: 'space-between', padding: 25, alignItems: 'center' },
+  brand: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  statusSmall: { fontSize: 10, textTransform: 'uppercase' },
+  touchpad: { flex: 1, margin: 20, borderRadius: 50, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' },
+  bottomPanel: { paddingBottom: 40, paddingHorizontal: 20, display: 'flex', flexDirection: 'column', gap: 20 },
+  switchBar: { backgroundColor: '#111', height: 70, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  btnText: { color: '#fff', fontWeight: 'bold' },
+  modalFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { backgroundColor: '#111', width: '85%', padding: 25, borderRadius: 30 },
+  modalLabel: { color: '#444', fontSize: 10, marginBottom: 8, fontWeight: 'bold', marginTop: 10 },
+  input: { backgroundColor: '#1a1a1a', color: '#fff', padding: 15, borderRadius: 15, marginBottom: 15 },
+  mBtn: { padding: 15, borderRadius: 15, alignItems: 'center' },
+  hiddenInput: { opacity: 0, position: 'absolute' },
+});
