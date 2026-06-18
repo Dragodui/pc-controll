@@ -16,7 +16,7 @@ RUN apt-get update \
         wl-clipboard \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /root/
+WORKDIR /app
 
 COPY --from=builder /app/server .
 

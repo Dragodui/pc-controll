@@ -5,6 +5,9 @@ services:
     container_name: pc-control-server
     # Host networking is required for mDNS discovery
     network_mode: host
+    user: "${PC_CONTROL_UID:-1000}:${PC_CONTROL_GID:-1000}"
+    group_add:
+      - "${PC_CONTROL_INPUT_GID:-104}"
     environment:
       - PCINPUT_BACKEND=linux-uinput
       - XDG_RUNTIME_DIR=/tmp/xdg-runtime
@@ -13,7 +16,8 @@ services:
     env_file:
       - .env
     # Required by the native Linux uinput backend.
-    # If this device is missing on the host, run: sudo modprobe uinput
+    # If this device is missing on the host, run: sudo modprobe uinput.
+    # If permission is denied, set PC_CONTROL_INPUT_GID to the host group id owning /dev/uinput.
     devices:
       - /dev/uinput:/dev/uinput
     volumes:

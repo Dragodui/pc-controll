@@ -83,6 +83,14 @@ docker compose up -d --build
 
 The Docker setup forces `PCINPUT_BACKEND=linux-uinput` and needs `/dev/uinput` from the host. Unicode paste in Docker also needs the host Wayland socket. If your runtime dir is not `/run/user/1000`, export `XDG_RUNTIME_DIR` before running Compose.
 
+For Docker on Linux desktop, set these in `server/.env` if defaults are wrong:
+
+```bash
+PC_CONTROL_UID=$(id -u)
+PC_CONTROL_GID=$(id -g)
+PC_CONTROL_INPUT_GID=$(stat -c %g /dev/uinput)
+```
+
 ### 4. Run without Docker
 Windows:
 
