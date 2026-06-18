@@ -6,20 +6,11 @@ services:
     # Host networking is required for mDNS discovery
     network_mode: host
     environment:
-      # Pass the host's DISPLAY variable for X11 control
-      - DISPLAY=${DISPLAY}
-      # Point to the mounted Xauthority file
-      - XAUTHORITY=/root/.Xauthority
+      - INPUT_BACKEND=c-linux-uinput
     # Load environment variables (WS_PORT, SERVER_PASSWORD) from .env
     env_file:
       - .env
-    # Mount X11 socket and Authority file for mouse/keyboard control
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - ${XAUTHORITY:-$HOME/.Xauthority}:/root/.Xauthority:ro
-      - /usr/bin/ydotool:/usr/local/bin/ydotool:ro
-      - /usr/bin/ydotoold:/usr/local/bin/ydotoold:ro
-    # Required by ydotool for Wayland input injection.
+    # Required by the native Linux uinput backend.
     # If this device is missing on the host, run: sudo modprobe uinput
     devices:
       - /dev/uinput:/dev/uinput

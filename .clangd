@@ -1,0 +1,4 @@
+CompileFlags:
+  Add:
+    - -Iserver/native/pcinput/include
+    - -Iserver/native/pcinput/src

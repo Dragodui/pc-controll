@@ -1,6 +1,6 @@
 # PC Control App
 
-A remote control application for Linux using a Go server and a React Native mobile client.
+A remote control application using a Go server, a native input backend, and a React Native mobile client.
 
 ## Features
 
@@ -14,13 +14,13 @@ A remote control application for Linux using a Go server and a React Native mobi
 
 ---
 
-## Server Setup (Linux)
+## Server Setup
 
 The server now selects the input backend automatically:
 
-- `Wayland` on Linux: uses CLI tools.
-- `X11` on Linux: uses `robotgo`.
-- Other systems: keeps using `robotgo`.
+- `Windows`: uses the native `pcinput` C backend when built with `-tags pcinput`.
+- `Wayland` on Linux: uses the native `pcinput` Linux `uinput` virtual input backend when built with `-tags pcinput`.
+- `X11` on Linux: native backend is planned, but not implemented yet.
 
 ### 1. Configuration
 Navigate to the `server` directory and create a `.env` file:
@@ -38,65 +38,53 @@ SERVER_PASSWORD=1234
 
 ### 2. Choose the backend requirements
 
-#### Wayland
-Install the CLI tools used by the server:
+#### Linux uinput
+The native Linux backend uses `/dev/uinput`. Your user or container must be allowed to open that device.
 
 ```bash
-sudo apt install ydotool wtype
-```
-
-Fedora/RHEL:
-
-```bash
-sudo dnf install ydotool wtype
-```
-
-Optional but recommended for pointer scrolling on Wayland:
-
-```bash
-sudo apt install wlrctl
-```
-
-Fedora/RHEL:
-
-```bash
-sudo dnf install wlrctl
+sudo modprobe uinput
 ```
 
 Notes:
-- `ydotoold` must be running, because `ydotool` depends on it.
-- If `wlrctl` is missing, move and click still work through `ydotool`, but scroll on Wayland will be unavailable.
+- The native `uinput` backend supports relative pointer movement, click, scroll, special keys, and basic ASCII text input.
+- This is a Linux virtual input backend, not a Wayland protocol backend. It depends on compositor/device handling for virtual input devices.
+- Full Unicode text input on Linux still needs a layout-aware implementation.
+- Absolute pointer movement and screen capture are not implemented for Wayland yet.
 
-#### X11
-If you run under X11, `robotgo` is used as before.
+#### Windows native backend
+Build and run with the `pcinput` tag:
 
-### 3. Permissions (X11 only)
-If you run the X11 path in Docker, you must allow it to access your display:
 ```bash
-xhost +local:docker
+cd server
+go run -tags pcinput cmd/main.go
 ```
 
-### 4. Run with Docker
+You can force it explicitly with `INPUT_BACKEND=c` or `INPUT_BACKEND=c-windows`.
+
+#### X11
+X11 support should be implemented in `server/native/pcinput` as a native backend.
+
+### 3. Run with Docker
 ```bash
 docker compose up -d --build
 ```
 
-Docker is still primarily suitable for the X11 path. For Wayland, running the server directly on the host is the safer option because the CLI tools need access to your real user session and input devices.
+The Docker setup forces `INPUT_BACKEND=c-linux-uinput` and needs `/dev/uinput` from the host.
 
-### 5. Run without Docker
-If you have Go installed locally, install dependencies and run:
+### 4. Run without Docker
+Windows:
+
 ```bash
-sudo apt install libx11-dev libxtst-dev libpng-dev # Debian/Ubuntu/PopOS
-go mod download
-go run cmd/main.go
+cd server
+go run -tags pcinput cmd/main.go
 ```
 
-Fedora/RHEL:
+Linux Wayland:
 
 ```bash
-sudo dnf install libX11-devel libXtst-devel libpng-devel gcc
+cd server
 go mod download
-go run cmd/main.go
+go run -tags pcinput cmd/main.go
 ```
 
 ---
@@ -127,13 +115,12 @@ Scan the QR code with the **Expo Go** app on your Android or iOS device.
 
 ## Troubleshooting
 
-- **"Could not open main display"**: Ensure you ran `xhost +local:docker` and that you are actually on X11.
 - **Connection Timed Out**: Check your PC's firewall. You might need to allow the port:
   ```bash
   sudo ufw allow 1212/tcp
   ```
-- **Wayland input does not work**: Check that `ydotool` is installed and `ydotoold` is running in the same user session.
-- **Wayland scrolling does not work**: Install `wlrctl`.
-- **Need to force a backend**: set `INPUT_BACKEND=robotgo` or `INPUT_BACKEND=wayland-cli`.
+- **Windows input does not use pcinput**: Build with `go run -tags pcinput cmd/main.go` or `go build -tags pcinput ./...`.
+- **Wayland input does not work**: Check that `/dev/uinput` exists and the server has permission to open it.
+- **Need to force a backend**: set `INPUT_BACKEND=c`, `INPUT_BACKEND=c-windows`, or `INPUT_BACKEND=c-linux-uinput`.
 
 ---

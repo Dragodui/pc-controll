@@ -19,7 +19,7 @@ func Run() error {
 		return err
 	}
 
-	backend := input.DetectBackend()
+	backend := input.DefaultBackend()
 
 	go discovery.StartMDNS(cfg.PCName, cfg.WSPort)
 
