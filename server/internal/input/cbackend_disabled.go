@@ -19,6 +19,3 @@ type Capabilities struct {
 func NewCBackend() (Backend, error) {
 	return nil, errors.New("pcinput backend is unavailable; rebuild with cgo and -tags pcinput")
 }
-
-func configureCBackend(forced string) {
-}

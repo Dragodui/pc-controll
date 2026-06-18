@@ -9,7 +9,7 @@ var (
 
 func DefaultBackend() Backend {
 	defaultOnce.Do(func() {
-		defaultBackend = DetectBackend()
+		defaultBackend = NewBackend()
 	})
 	return defaultBackend
 }

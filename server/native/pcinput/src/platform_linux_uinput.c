@@ -6,8 +6,10 @@
 #include <fcntl.h>
 #include <linux/input.h>
 #include <linux/uinput.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -53,6 +55,136 @@ static int linux_uinput_tap_key_code(int code) {
         return result;
     }
     return linux_uinput_emit_key(code, 0);
+}
+
+static int linux_uinput_paste_clipboard(void) {
+    int result = linux_uinput_emit_key(KEY_LEFTCTRL, 1);
+    if (result != PCINPUT_OK) {
+        return result;
+    }
+
+    result = linux_uinput_tap_key_code(KEY_V);
+    if (result != PCINPUT_OK) {
+        linux_uinput_emit_key(KEY_LEFTCTRL, 0);
+        return result;
+    }
+
+    return linux_uinput_emit_key(KEY_LEFTCTRL, 0);
+}
+
+static int linux_uinput_text_is_basic_ascii(const char* text) {
+    const unsigned char* cursor = (const unsigned char*)text;
+
+    while (*cursor != '\0') {
+        if (*cursor >= 0x80) {
+            return 0;
+        }
+        cursor++;
+    }
+
+    return 1;
+}
+
+static int linux_uinput_write_all(int fd, const char* text) {
+    size_t len = strlen(text);
+    size_t offset = 0;
+
+    while (offset < len) {
+        ssize_t written = write(fd, text + offset, len - offset);
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if (written == 0) {
+            return -1;
+        }
+        offset += (size_t)written;
+    }
+
+    return 0;
+}
+
+static int linux_uinput_run_clipboard_command(char* const argv[], const char* text) {
+    int pipe_fds[2];
+    pid_t pid;
+    int status;
+    struct sigaction ignore_pipe;
+    struct sigaction old_pipe;
+    int write_result;
+
+    if (pipe(pipe_fds) < 0) {
+        return PCINPUT_ERR_BACKEND;
+    }
+
+    pid = fork();
+    if (pid < 0) {
+        close(pipe_fds[0]);
+        close(pipe_fds[1]);
+        return PCINPUT_ERR_BACKEND;
+    }
+
+    if (pid == 0) {
+        close(pipe_fds[1]);
+        if (dup2(pipe_fds[0], STDIN_FILENO) < 0) {
+            _exit(127);
+        }
+        close(pipe_fds[0]);
+        execvp(argv[0], argv);
+        _exit(127);
+    }
+
+    close(pipe_fds[0]);
+    memset(&ignore_pipe, 0, sizeof(ignore_pipe));
+    ignore_pipe.sa_handler = SIG_IGN;
+    sigemptyset(&ignore_pipe.sa_mask);
+    if (sigaction(SIGPIPE, &ignore_pipe, &old_pipe) < 0) {
+        close(pipe_fds[1]);
+        waitpid(pid, &status, 0);
+        return PCINPUT_ERR_BACKEND;
+    }
+
+    write_result = linux_uinput_write_all(pipe_fds[1], text);
+    sigaction(SIGPIPE, &old_pipe, 0);
+
+    if (write_result != 0) {
+        close(pipe_fds[1]);
+        waitpid(pid, &status, 0);
+        return PCINPUT_ERR_BACKEND;
+    }
+    close(pipe_fds[1]);
+
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) {
+            return PCINPUT_ERR_BACKEND;
+        }
+    }
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return PCINPUT_ERR_BACKEND;
+    }
+
+    return PCINPUT_OK;
+}
+
+static int linux_uinput_set_clipboard_text(const char* text) {
+    char* wl_copy_argv[] = {"wl-copy", "--type", "text/plain;charset=utf-8", 0};
+    char* xclip_argv[] = {"xclip", "-selection", "clipboard", "-in", "-t", "text/plain;charset=utf-8", 0};
+    char* xsel_argv[] = {"xsel", "--clipboard", "--input", 0};
+
+    if (linux_uinput_run_clipboard_command(wl_copy_argv, text) == PCINPUT_OK) {
+        return PCINPUT_OK;
+    }
+    if (linux_uinput_run_clipboard_command(xclip_argv, text) == PCINPUT_OK) {
+        return PCINPUT_OK;
+    }
+    if (linux_uinput_run_clipboard_command(xsel_argv, text) == PCINPUT_OK) {
+        return PCINPUT_OK;
+    }
+
+    pc_set_error("non-ASCII text input requires wl-copy, xclip, or xsel for clipboard paste");
+    return PCINPUT_ERR_UNSUPPORTED;
 }
 
 static int linux_uinput_set_bit(unsigned long request, int value, const char* label) {
@@ -448,6 +580,14 @@ static int linux_uinput_keyboard_type_utf8(const char* text) {
 
     if (text == 0) {
         return pc_invalid_argument("keyboard text pointer is null");
+    }
+
+    if (!linux_uinput_text_is_basic_ascii(text)) {
+        int result = linux_uinput_set_clipboard_text(text);
+        if (result != PCINPUT_OK) {
+            return result;
+        }
+        return linux_uinput_paste_clipboard();
     }
 
     while (*cursor != '\0') {

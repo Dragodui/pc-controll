@@ -45,10 +45,22 @@ The native Linux backend uses `/dev/uinput`. Your user or container must be allo
 sudo modprobe uinput
 ```
 
+For non-ASCII text such as Cyrillic, install a clipboard helper. Wayland usually uses `wl-copy`:
+
+```bash
+sudo apt install wl-clipboard
+```
+
+X11-like sessions can use `xclip` or `xsel`:
+
+```bash
+sudo apt install xclip
+```
+
 Notes:
-- The native `uinput` backend supports relative pointer movement, click, scroll, special keys, and basic ASCII text input.
+- The native `uinput` backend supports relative pointer movement, click, scroll, special keys, and basic ASCII text input directly.
+- Unicode text input on Linux uses clipboard paste plus `Ctrl+V`, so it temporarily replaces the current clipboard.
 - This is a Linux virtual input backend, not a Wayland protocol backend. It depends on compositor/device handling for virtual input devices.
-- Full Unicode text input on Linux still needs a layout-aware implementation.
 - Absolute pointer movement and screen capture are not implemented for Wayland yet.
 
 #### Windows native backend
@@ -59,7 +71,7 @@ cd server
 go run -tags pcinput cmd/main.go
 ```
 
-You can force it explicitly with `INPUT_BACKEND=c` or `INPUT_BACKEND=c-windows`.
+You can force it explicitly with `PCINPUT_BACKEND=windows`.
 
 #### X11
 X11 support should be implemented in `server/native/pcinput` as a native backend.
@@ -69,7 +81,7 @@ X11 support should be implemented in `server/native/pcinput` as a native backend
 docker compose up -d --build
 ```
 
-The Docker setup forces `INPUT_BACKEND=c-linux-uinput` and needs `/dev/uinput` from the host.
+The Docker setup forces `PCINPUT_BACKEND=linux-uinput` and needs `/dev/uinput` from the host. Unicode paste in Docker also needs the host Wayland socket. If your runtime dir is not `/run/user/1000`, export `XDG_RUNTIME_DIR` before running Compose.
 
 ### 4. Run without Docker
 Windows:
@@ -121,6 +133,6 @@ Scan the QR code with the **Expo Go** app on your Android or iOS device.
   ```
 - **Windows input does not use pcinput**: Build with `go run -tags pcinput cmd/main.go` or `go build -tags pcinput ./...`.
 - **Wayland input does not work**: Check that `/dev/uinput` exists and the server has permission to open it.
-- **Need to force a backend**: set `INPUT_BACKEND=c`, `INPUT_BACKEND=c-windows`, or `INPUT_BACKEND=c-linux-uinput`.
+- **Need to force a backend**: set `PCINPUT_BACKEND=windows`, `PCINPUT_BACKEND=linux-uinput`, or `PCINPUT_BACKEND=wayland`.
 
 ---

@@ -242,6 +242,7 @@ export default function App() {
     prevInputText.current = text;
     if (text.length > 30) {
       inputRef.current?.clear();
+      prevInputText.current = '';
     }
   };
 

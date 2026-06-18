@@ -1,2 +1,0 @@
--I../../native/pcinput/include
--I../../native/pcinput/src

@@ -11,6 +11,11 @@ RUN CGO_ENABLED=1 GOOS=linux go build -tags pcinput -o server ./cmd
 
 FROM debian:bookworm-slim
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        wl-clipboard \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /root/
 
 COPY --from=builder /app/server .

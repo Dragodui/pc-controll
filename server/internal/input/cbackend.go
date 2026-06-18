@@ -3,7 +3,7 @@
 package input
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../native/pcinput/include -I${SRCDIR}/../../native/pcinput/src
+#cgo CFLAGS: -I${SRCDIR}/../../native/pcinput/include
 #cgo windows LDFLAGS: -luser32
 #include <stdlib.h>
 #include "pcinput.h"
@@ -12,7 +12,6 @@ import "C"
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"unsafe"
@@ -42,11 +41,7 @@ func NewCBackend() (Backend, error) {
 		return nil, pcinputError("initialize pcinput", result)
 	}
 	if C.GoString(C.pc_backend_name()) == "null" {
-		forced := strings.ToLower(strings.TrimSpace(os.Getenv("PCINPUT_BACKEND")))
-		if forced == "" {
-			forced = "auto"
-		}
-		return nil, fmt.Errorf("requested pcinput backend %q resolved to null; no native backend is available on this platform yet", forced)
+		return nil, fmt.Errorf("pcinput resolved to null; no native backend is available on this platform yet")
 	}
 	return CBackend{}, nil
 }
@@ -196,21 +191,6 @@ func (b CBackend) KeyUp(key string) error {
 		return pcinputError("release key", result)
 	}
 	return nil
-}
-
-func configureCBackend(forced string) {
-	switch forced {
-	case "c", "c-auto":
-		_ = os.Setenv("PCINPUT_BACKEND", "auto")
-	case "c-windows":
-		_ = os.Setenv("PCINPUT_BACKEND", "windows")
-	case "c-wayland":
-		_ = os.Setenv("PCINPUT_BACKEND", "wayland")
-	case "c-linux-uinput":
-		_ = os.Setenv("PCINPUT_BACKEND", "linux-uinput")
-	case "c-macos":
-		_ = os.Setenv("PCINPUT_BACKEND", "macos")
-	}
 }
 
 func checkedCInt(value int, name string) (C.int, error) {

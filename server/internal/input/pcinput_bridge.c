@@ -1,8 +1,8 @@
 //go:build cgo && pcinput
 
-#include "error.c"
-#include "backend_null.c"
-#include "backend_detect.c"
-#include "pcinput.c"
-#include "platform_windows.c"
-#include "platform_linux_uinput.c"
+#include "../../native/pcinput/src/error.c"
+#include "../../native/pcinput/src/backend_null.c"
+#include "../../native/pcinput/src/backend_detect.c"
+#include "../../native/pcinput/src/pcinput.c"
+#include "../../native/pcinput/src/platform_windows.c"
+#include "../../native/pcinput/src/platform_linux_uinput.c"
