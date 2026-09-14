@@ -19,9 +19,8 @@ A remote control application using a Go server, a native input backend, and a Re
 The server now selects the input backend automatically:
 
 - `Windows`: uses the native `pcinput` C backend when built with `-tags pcinput`.
-- `Wayland` on Linux: uses the native `pcinput` Linux `uinput` virtual input backend when built with `-tags pcinput`.
+- `Linux` (Wayland and X11): uses the native `pcinput` `uinput` virtual input backend when built with `-tags pcinput`. `uinput` works below the display server, so both session types are supported.
 - `macOS`: uses the native `pcinput` CGEvent backend when built with `-tags pcinput`. Needs Accessibility permission.
-- `X11` on Linux: native backend is planned, but not implemented yet.
 
 ### 1. Configuration
 Navigate to the `server` directory and create a `.env` file:
@@ -61,8 +60,8 @@ sudo apt install xclip
 Notes:
 - The native `uinput` backend supports relative pointer movement, click, scroll, special keys, and basic ASCII text input directly.
 - Unicode text input on Linux uses clipboard paste plus `Ctrl+V`, so it temporarily replaces the current clipboard.
-- This is a Linux virtual input backend, not a Wayland protocol backend. It depends on compositor/device handling for virtual input devices.
-- Absolute pointer movement and screen capture are not implemented for Wayland yet.
+- This is a Linux virtual input backend, not a Wayland or X11 protocol backend. It depends on compositor/device handling for virtual input devices.
+- Absolute pointer movement and screen capture are not implemented on Linux yet.
 
 #### Windows native backend
 Build and run with the `pcinput` tag:
@@ -91,7 +90,9 @@ Notes:
 - `alt` maps to Command, so the client's Alt+Tab bar drives the macOS app switcher (Cmd+Tab).
 
 #### X11
-X11 support should be implemented in `server/native/pcinput` as a native backend.
+Same `uinput` backend as Wayland. Only the Unicode clipboard helper differs: install `xclip` (or `xsel`).
+For Docker on X11, run `xhost +local:` once so the container may talk to the X server; the Compose file
+passes `DISPLAY` and mounts `/tmp/.X11-unix`.
 
 ### 3. Run with Docker
 ```bash

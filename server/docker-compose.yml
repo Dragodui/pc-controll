@@ -12,6 +12,8 @@ services:
       - PCINPUT_BACKEND=linux-uinput
       - XDG_RUNTIME_DIR=/tmp/xdg-runtime
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
+      # X11 sessions: xclip needs DISPLAY and the X socket (run `xhost +local:` on the host once).
+      - DISPLAY=${DISPLAY:-}
     # Load environment variables (WS_PORT, SERVER_PASSWORD) from .env
     env_file:
       - .env
@@ -22,3 +24,4 @@ services:
       - /dev/uinput:/dev/uinput
     volumes:
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/${WAYLAND_DISPLAY:-wayland-0}:/tmp/xdg-runtime/${WAYLAND_DISPLAY:-wayland-0}
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
