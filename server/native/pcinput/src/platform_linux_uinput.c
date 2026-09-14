@@ -419,17 +419,23 @@ static int linux_uinput_mouse_scroll(int dx, int dy) {
     return linux_uinput_sync();
 }
 
+/* Linux key codes follow physical QWERTY layout, not alphabetical order. */
+static const int linux_letter_codes[26] = {
+    KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
+    KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z
+};
+
 static linux_text_key_t linux_uinput_text_key(unsigned char ch) {
     linux_text_key_t key;
     key.code = 0;
     key.shift = 0;
 
     if (ch >= 'a' && ch <= 'z') {
-        key.code = KEY_A + (ch - 'a');
+        key.code = linux_letter_codes[ch - 'a'];
         return key;
     }
     if (ch >= 'A' && ch <= 'Z') {
-        key.code = KEY_A + (ch - 'A');
+        key.code = linux_letter_codes[ch - 'A'];
         key.shift = 1;
         return key;
     }
