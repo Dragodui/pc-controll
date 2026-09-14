@@ -49,6 +49,7 @@ if [ -c /dev/uinput ]; then
 else
   bad "/dev/uinput missing. Run: sudo modprobe uinput"
 fi
+if grep -qsx uinput /etc/modules-load.d/*.conf 2>/dev/null; then ok "uinput module autoloads on boot"; else warn "uinput not in /etc/modules-load.d; gone after reboot. Run: make install-uinput"; fi
 if grep -q "pcinput virtual input" /proc/bus/input/devices; then ok "virtual device 'pcinput virtual input' registered in kernel"; else bad "no 'pcinput virtual input' in /proc/bus/input/devices: container did not create uinput device"; fi
 
 echo "== Network"

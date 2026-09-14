@@ -40,10 +40,24 @@ SERVER_PASSWORD=1234
 
 #### Linux uinput
 The native Linux backend uses `/dev/uinput`. Your user or container must be allowed to open that device.
+One-time setup (loads the module on boot, adds a udev rule, puts you in the `input` group, fixes `.env`):
+
+```bash
+cd server
+make install-uinput   # runs sudo ./scripts/install-uinput.sh
+```
+
+Manual equivalent:
 
 ```bash
 sudo modprobe uinput
+echo uinput | sudo tee /etc/modules-load.d/uinput.conf
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' | sudo tee /etc/udev/rules.d/99-uinput.rules
+sudo udevadm control --reload && sudo udevadm trigger
+sudo usermod -aG input $USER
 ```
+
+`make preflight` checks all of this plus the firewall and mDNS.
 
 For non-ASCII text such as Cyrillic, install a clipboard helper. Wayland usually uses `wl-copy`:
 

@@ -9,6 +9,7 @@
 #   make apk        -> dist/pc-control-client.apk (local Gradle build, needs Android SDK + JDK 17)
 #   make apk-eas    -> same via EAS cloud build (needs `eas login`)
 #   make test-phone -> run the fake-phone test against the running server
+#   make install-uinput -> Linux host setup for /dev/uinput (sudo)
 
 BIN     := pc-control-server
 DIST    := dist
@@ -23,7 +24,7 @@ CLIENT      := ../client
 ANDROID_DIR := $(CLIENT)/android
 APK_OUT     := $(ANDROID_DIR)/app/build/outputs/apk/release/app-release.apk
 
-.PHONY: build all linux windows darwin apk apk-eas clean clean-apk test-phone preflight
+.PHONY: build all linux windows darwin apk apk-eas clean clean-apk test-phone preflight install-uinput
 
 build: $(DIST)/$(BIN)
 
@@ -74,6 +75,10 @@ apk-eas:
 
 clean-apk:
 	rm -rf $(ANDROID_DIR) $(DIST)/pc-control-client.apk
+
+# One-time Linux host setup (module autoload, udev rule, group, .env gid). Needs sudo.
+install-uinput:
+	sudo ./scripts/install-uinput.sh $(USER)
 
 preflight:
 	./scripts/preflight.sh
