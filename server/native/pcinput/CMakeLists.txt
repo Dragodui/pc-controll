@@ -20,6 +20,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(pcinput PRIVATE src/platform_linux_uinput.c)
 endif()
 
+if(APPLE)
+    target_sources(pcinput PRIVATE src/platform_macos.c)
+    target_link_libraries(pcinput PRIVATE "-framework ApplicationServices")
+endif()
+
 target_include_directories(pcinput
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include

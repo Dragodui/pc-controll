@@ -40,6 +40,12 @@ const pc_backend_t* pc_detect_backend(void) {
             return pc_linux_uinput_backend();
         }
 #endif
+#ifdef __APPLE__
+        if (equals_ignore_case_ascii(forced, "macos") ||
+            equals_ignore_case_ascii(forced, "darwin")) {
+            return pc_macos_backend();
+        }
+#endif
         pc_set_errorf("unknown or unavailable PCINPUT_BACKEND: %s", forced);
         return pc_null_backend();
     }
@@ -48,6 +54,8 @@ const pc_backend_t* pc_detect_backend(void) {
     return pc_windows_backend();
 #elif defined(__linux__)
     return pc_linux_uinput_backend();
+#elif defined(__APPLE__)
+    return pc_macos_backend();
 #else
     return pc_null_backend();
 #endif

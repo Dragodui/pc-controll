@@ -20,6 +20,7 @@ The server now selects the input backend automatically:
 
 - `Windows`: uses the native `pcinput` C backend when built with `-tags pcinput`.
 - `Wayland` on Linux: uses the native `pcinput` Linux `uinput` virtual input backend when built with `-tags pcinput`.
+- `macOS`: uses the native `pcinput` CGEvent backend when built with `-tags pcinput`. Needs Accessibility permission.
 - `X11` on Linux: native backend is planned, but not implemented yet.
 
 ### 1. Configuration
@@ -72,6 +73,22 @@ go run -tags pcinput cmd/main.go
 ```
 
 You can force it explicitly with `PCINPUT_BACKEND=windows`.
+
+#### macOS native backend
+Build on a Mac (cross-compiling needs the macOS SDK):
+
+```bash
+cd server
+make darwin   # or: go build -tags pcinput ./cmd
+```
+
+On first run macOS shows the Accessibility prompt. Allow the binary (or the terminal that runs it) in
+System Settings > Privacy & Security > Accessibility, then restart the server. Without it the server
+starts but every input command fails with a permission error.
+
+Notes:
+- Unicode text is typed directly through CGEvent; no clipboard is used.
+- `alt` maps to Command, so the client's Alt+Tab bar drives the macOS app switcher (Cmd+Tab).
 
 #### X11
 X11 support should be implemented in `server/native/pcinput` as a native backend.

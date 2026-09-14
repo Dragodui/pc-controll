@@ -29,6 +29,10 @@ const pc_backend_t* pc_windows_backend(void);
 const pc_backend_t* pc_linux_uinput_backend(void);
 #endif
 
+#ifdef __APPLE__
+const pc_backend_t* pc_macos_backend(void);
+#endif
+
 void pc_set_error(const char* message);
 void pc_set_errorf(const char* format, ...);
 void pc_clear_error(void);

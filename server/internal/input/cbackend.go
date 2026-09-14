@@ -5,6 +5,7 @@ package input
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../native/pcinput/include
 #cgo windows LDFLAGS: -luser32
+#cgo darwin LDFLAGS: -framework ApplicationServices
 #include <stdlib.h>
 #include "pcinput.h"
 */

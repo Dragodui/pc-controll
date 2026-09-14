@@ -6,3 +6,4 @@
 #include "../../native/pcinput/src/pcinput.c"
 #include "../../native/pcinput/src/platform_windows.c"
 #include "../../native/pcinput/src/platform_linux_uinput.c"
+#include "../../native/pcinput/src/platform_macos.c"
