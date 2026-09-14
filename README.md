@@ -109,6 +109,18 @@ PC_CONTROL_INPUT_GID=$(stat -c %g /dev/uinput)
 ```
 
 ### 4. Run without Docker
+The binary reads `.env` from the working directory or from the folder next to the executable.
+Variables already set in the shell take priority. Build single-file binaries with `make` (see `server/Makefile`):
+
+```bash
+cd server
+make            # dist/pc-control-server for this OS
+make all        # Linux + Windows (needs mingw-w64)
+make darwin     # run on a Mac
+```
+
+Then copy `.env` next to the binary and run it.
+
 Windows:
 
 ```bash
