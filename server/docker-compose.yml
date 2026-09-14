@@ -14,6 +14,7 @@ services:
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
       # X11 sessions: xclip needs DISPLAY and the X socket (run `xhost +local:` on the host once).
       - DISPLAY=${DISPLAY:-}
+      - XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}
     # Load environment variables (WS_PORT, SERVER_PASSWORD) from .env
     env_file:
       - .env

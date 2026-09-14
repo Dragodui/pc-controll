@@ -136,6 +136,12 @@ make darwin     # run on a Mac
 
 Then copy `.env` next to the binary and run it.
 
+Prebuilt binaries and the APK are attached to every GitHub release. Tag a commit to publish one:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
 Windows:
 
 ```bash

@@ -1,0 +1,93 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  server:
+    name: server (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-amd64
+            os: ubuntu-latest
+            target: linux
+            artifact: pc-control-server-linux-amd64
+          - name: windows-amd64
+            os: ubuntu-latest
+            target: windows
+            artifact: pc-control-server-windows-amd64.exe
+          - name: darwin-arm64
+            os: macos-latest
+            target: darwin
+            artifact: pc-control-server-darwin-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Install mingw-w64
+        if: matrix.target == 'windows'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
+      - name: Build
+        working-directory: server
+        run: make ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: server/dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  apk:
+    name: android apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build
+        working-directory: server
+        run: make apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-control-client.apk
+          path: server/dist/pc-control-client.apk
+          if-no-files-found: error
+
+  release:
+    name: github release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [server, apk]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
