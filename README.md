@@ -1,50 +1,64 @@
-# PC Control App
+# PC Control
 
-A remote control application using a Go server, a native input backend, and a React Native mobile client.
+Control your PC from your phone over Wi-Fi: trackpad, scroll, keyboard, Alt+Tab.
+A Go server with a native C input backend runs on the computer; an Expo (React Native) app runs on the phone.
 
 ## Features
 
-- **Trackpad**: Move mouse, single-finger tap for left click.
-- **Scroll**: Two-finger drag for vertical and horizontal scrolling.
-- **Right Click**: Two-finger tap.
-- **Keyboard**: Full text input and special keys (Backspace, Enter).
-- **Alt+Tab**: Dedicated bar to switch windows easily with haptic feedback.
-- **Sensitivity**: Independent sliders for mouse and scroll speed.
-- **Auto-Discovery**: mDNS support and network scanning to find your PC.
+- **Trackpad**: move the mouse, single-finger tap for left click, two-finger tap for right click.
+- **Scroll**: two-finger drag, vertical and horizontal.
+- **Keyboard**: full text input including Unicode, plus Backspace, Enter, Space.
+- **Alt+Tab bar**: switch windows with haptic feedback (Cmd+Tab on macOS).
+- **Sensitivity**: separate sliders for mouse and scroll speed.
+- **Auto-discovery**: mDNS (`_remotepad._tcp`) and network scan, or enter the IP by hand.
 
----
+## Quick start
 
-## Server Setup
+1. Download from [Releases](https://github.com/Dragodui/pc-controll/releases):
+   - `pc-control-server-linux-amd64`, `pc-control-server-windows-amd64.exe`, or `pc-control-server-darwin-arm64`
+   - `pc-control-client.apk` (Android, arm64)
+2. Put a `.env` next to the server binary:
+   ```env
+   WS_PORT=1212
+   SERVER_PASSWORD=1234
+   PC_NAME=My PC
+   ```
+3. Do the one-time OS setup below, then run the binary. It prints its IP addresses.
+4. Install the APK, connect the phone to the same Wi-Fi, pick the PC from the list (or add `IP:1212` manually) and enter the password.
 
-The server now selects the input backend automatically:
+Everything is a single static file per platform; the C backend is compiled in.
 
-- `Windows`: uses the native `pcinput` C backend when built with `-tags pcinput`.
-- `Linux` (Wayland and X11): uses the native `pcinput` `uinput` virtual input backend when built with `-tags pcinput`. `uinput` works below the display server, so both session types are supported.
-- `macOS`: uses the native `pcinput` CGEvent backend when built with `-tags pcinput`. Needs Accessibility permission.
+## Server
 
-### 1. Configuration
-Navigate to the `server` directory and create a `.env` file:
+### Supported platforms
+
+| OS | Backend | Notes |
+|---|---|---|
+| Windows | Win32 `SendInput` | no setup |
+| Linux (Wayland and X11) | `uinput` virtual device | needs access to `/dev/uinput`; Unicode via clipboard paste |
+| macOS | CGEvent | needs Accessibility permission |
+
+The backend is picked automatically. Force one with `PCINPUT_BACKEND=windows|linux-uinput|macos|null`.
+
+### Configuration
+
+The server reads `.env` from the working directory or from the folder next to the executable. Variables already set in the environment take priority (that is how Docker passes them).
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `WS_PORT` | yes | WebSocket port, the phone connects here |
+| `SERVER_PASSWORD` | yes | password the phone must send |
+| `PC_NAME` | no | name shown on the phone (default `Remote PC`) |
+| `PCINPUT_BACKEND` | no | force a backend |
+| `PC_CONTROL_UID/GID/INPUT_GID` | Docker only | see below |
+
+### Linux setup
+
+`uinput` works below the display server, so Wayland and X11 both work. The server must be able to open `/dev/uinput`.
 
 ```bash
 cd server
-cp .env.example .env # Or create one manually
-```
-
-Edit `.env`:
-```env
-WS_PORT=1212
-SERVER_PASSWORD=1234
-```
-
-### 2. Choose the backend requirements
-
-#### Linux uinput
-The native Linux backend uses `/dev/uinput`. Your user or container must be allowed to open that device.
-One-time setup (loads the module on boot, adds a udev rule, puts you in the `input` group, fixes `.env`):
-
-```bash
-cd server
-make install-uinput   # runs sudo ./scripts/install-uinput.sh
+make install-uinput   # sudo: loads the module on boot, udev rule, adds you to 'input', fixes .env
 ```
 
 Manual equivalent:
@@ -54,68 +68,32 @@ sudo modprobe uinput
 echo uinput | sudo tee /etc/modules-load.d/uinput.conf
 echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' | sudo tee /etc/udev/rules.d/99-uinput.rules
 sudo udevadm control --reload && sudo udevadm trigger
-sudo usermod -aG input $USER
+sudo usermod -aG input $USER   # re-login
 ```
 
-`make preflight` checks all of this plus the firewall and mDNS.
+Non-ASCII text (for example Cyrillic) is pasted through the clipboard with Ctrl+V, so it overwrites the clipboard and needs a helper: `wl-clipboard` on Wayland, `xclip` or `xsel` on X11. ASCII is typed as key events; the result depends on the active keyboard layout.
 
-For non-ASCII text such as Cyrillic, install a clipboard helper. Wayland usually uses `wl-copy`:
+Not implemented on Linux: absolute pointer movement, screen capture.
 
-```bash
-sudo apt install wl-clipboard
-```
+### Windows setup
 
-X11-like sessions can use `xclip` or `xsel`:
+None. Windows Firewall asks on first start; allow it for private networks.
 
-```bash
-sudo apt install xclip
-```
+### macOS setup
 
-Notes:
-- The native `uinput` backend supports relative pointer movement, click, scroll, special keys, and basic ASCII text input directly.
-- Unicode text input on Linux uses clipboard paste plus `Ctrl+V`, so it temporarily replaces the current clipboard.
-- This is a Linux virtual input backend, not a Wayland or X11 protocol backend. It depends on compositor/device handling for virtual input devices.
-- Absolute pointer movement and screen capture are not implemented on Linux yet.
+Run the binary once. macOS shows the Accessibility prompt; allow the binary (or the terminal that runs it) in System Settings > Privacy & Security > Accessibility, then restart the server. Until then every input command fails with a permission error.
 
-#### Windows native backend
-Build and run with the `pcinput` tag:
+Unicode text is typed directly, no clipboard. `alt` maps to Command so the Alt+Tab bar drives the app switcher.
+
+### Run with Docker (Linux)
 
 ```bash
 cd server
-go run -tags pcinput cmd/main.go
-```
-
-You can force it explicitly with `PCINPUT_BACKEND=windows`.
-
-#### macOS native backend
-Build on a Mac (cross-compiling needs the macOS SDK):
-
-```bash
-cd server
-make darwin   # or: go build -tags pcinput ./cmd
-```
-
-On first run macOS shows the Accessibility prompt. Allow the binary (or the terminal that runs it) in
-System Settings > Privacy & Security > Accessibility, then restart the server. Without it the server
-starts but every input command fails with a permission error.
-
-Notes:
-- Unicode text is typed directly through CGEvent; no clipboard is used.
-- `alt` maps to Command, so the client's Alt+Tab bar drives the macOS app switcher (Cmd+Tab).
-
-#### X11
-Same `uinput` backend as Wayland. Only the Unicode clipboard helper differs: install `xclip` (or `xsel`).
-For Docker on X11, run `xhost +local:` once so the container may talk to the X server; the Compose file
-passes `DISPLAY` and mounts `/tmp/.X11-unix`.
-
-### 3. Run with Docker
-```bash
+cp .env.example .env
 docker compose up -d --build
 ```
 
-The Docker setup forces `PCINPUT_BACKEND=linux-uinput` and needs `/dev/uinput` from the host. Unicode paste in Docker also needs the host Wayland socket. If your runtime dir is not `/run/user/1000`, export `XDG_RUNTIME_DIR` before running Compose.
-
-For Docker on Linux desktop, set these in `server/.env` if defaults are wrong:
+The container uses host networking (for mDNS), `/dev/uinput` from the host, and the host Wayland socket or X11 socket for clipboard paste. If defaults are wrong, set in `.env`:
 
 ```bash
 PC_CONTROL_UID=$(id -u)
@@ -123,74 +101,74 @@ PC_CONTROL_GID=$(id -g)
 PC_CONTROL_INPUT_GID=$(stat -c %g /dev/uinput)
 ```
 
-### 4. Run without Docker
-The binary reads `.env` from the working directory or from the folder next to the executable.
-Variables already set in the shell take priority. Build single-file binaries with `make` (see `server/Makefile`):
+`make install-uinput` writes `PC_CONTROL_INPUT_GID` for you. On X11 run `xhost +local:` once. If your runtime dir is not `/run/user/1000`, export `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY` before Compose.
+
+### Build from source
+
+Needs Go 1.24+ and a C compiler (gcc/clang, or MSVC/mingw on Windows).
 
 ```bash
 cd server
-make            # dist/pc-control-server for this OS
-make all        # Linux + Windows (needs mingw-w64)
-make darwin     # run on a Mac
+make              # dist/pc-control-server for this OS
+make linux        # dist/pc-control-server-linux-amd64
+make windows      # dist/pc-control-server-windows-amd64.exe (cross-compile, needs mingw-w64)
+make darwin       # run on a Mac
+make all          # linux + windows
 ```
 
-Then copy `.env` next to the binary and run it.
+Or directly: `go build -tags pcinput ./cmd`. Without `-tags pcinput` the server builds with no input backend.
 
-Prebuilt binaries and the APK are attached to every GitHub release. Tag a commit to publish one:
+### Testing without a phone
+
+```bash
+cd server
+make preflight     # host checks: container, /dev/uinput, firewall, mDNS, clipboard helper
+make test-phone    # preflight + replays the phone's WebSocket commands, then checks the server log
+node scripts/fake-phone.js move click type   # individual scenarios
+python3 scripts/keylog.py                    # prints the raw events the virtual device emits
+```
+
+`fake-phone.js` moves the cursor, scrolls, clicks and types on the real screen; focus a text editor first.
+
+## Client (Android / iOS)
+
+The app uses native modules (`react-native-zeroconf`), so it does not run in Expo Go. Use the prebuilt APK from Releases, or build:
+
+```bash
+cd client
+pnpm install
+```
+
+Local APK (needs Android SDK and JDK 17):
+
+```bash
+cd server && make apk    # dist/pc-control-client.apk, arm64 only
+```
+
+Cloud build via EAS (`eas login` first): `make apk-eas`. Development client: `pnpm dev` after `npx expo run:android`.
+
+The APK ships only `arm64-v8a`. For an x86 emulator add the ABI to `plugins` in `client/app.json`.
+
+## Releases
+
+GitHub Actions builds Linux, Windows and macOS binaries plus the APK on every push. A tag publishes a release:
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Windows:
-
-```bash
-cd server
-go run -tags pcinput cmd/main.go
-```
-
-Linux Wayland:
-
-```bash
-cd server
-go mod download
-go run -tags pcinput cmd/main.go
-```
-
----
-
-## Client Setup (Mobile)
-
-The client is built with Expo (React Native).
-
-### 1. Install Dependencies
-```bash
-cd client
-npm install
-```
-
-### 2. Start Expo
-```bash
-npx expo start
-```
-Scan the QR code with the **Expo Go** app on your Android or iOS device.
-
-### 3. Connecting
-- Ensure your phone and PC are on the **same Wi-Fi network**.
-- Use the **Search** icon in the app to scan the network, or tap the **+** button to add your PC's IP manually.
-- Default Port: `1212`
-- Default Password: `1234`
-
----
+Binaries are not code-signed. Windows SmartScreen: "More info" > "Run anyway". macOS Gatekeeper: `xattr -d com.apple.quarantine pc-control-server-darwin-arm64`.
 
 ## Troubleshooting
 
-- **Connection Timed Out**: Check your PC's firewall. You might need to allow the port:
+- **Phone cannot find or connect to the PC**: same Wi-Fi? Firewall on the PC is the usual cause. `make preflight` checks it. ufw example:
   ```bash
-  sudo ufw allow 1212/tcp
+  sudo ufw allow from 192.168.0.0/24 to any port 1212 proto tcp
+  sudo ufw allow from 192.168.0.0/24 to any port 5353 proto udp   # mDNS
   ```
-- **Windows input does not use pcinput**: Build with `go run -tags pcinput cmd/main.go` or `go build -tags pcinput ./...`.
-- **Wayland input does not work**: Check that `/dev/uinput` exists and the server has permission to open it.
-- **Need to force a backend**: set `PCINPUT_BACKEND=windows`, `PCINPUT_BACKEND=linux-uinput`, or `PCINPUT_BACKEND=wayland`.
-
----
+  Router "AP isolation" / "client isolation" also blocks it.
+- **Server starts but nothing moves (Linux)**: `pcinput backend is unavailable ... permission denied` in the log means `/dev/uinput` is not accessible. Run `make install-uinput`, re-login (native) or recreate the container (Docker).
+- **Letters come out wrong (Linux)**: the PC keyboard layout is not Latin at the moment of typing. Switch layout on the PC.
+- **Cyrillic does not appear (Linux)**: clipboard helper missing, or the focused app does not paste with Ctrl+V (terminals use Ctrl+Shift+V).
+- **macOS: every command fails**: Accessibility permission not granted, see macOS setup.
+- **`SERVER_PASSWORD is required`**: no `.env` next to the binary and no environment variables.
