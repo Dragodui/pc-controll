@@ -41,8 +41,19 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "buildArchs": [
+              "arm64-v8a"
+            ]
           }
+        }
+      ],
+      [
+        "./plugins/withAbiFilters",
+        {
+          "abis": [
+            "arm64-v8a"
+          ]
         }
       ]
     ],
