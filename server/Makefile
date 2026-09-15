@@ -12,6 +12,8 @@
 #   make apk-eas    -> same via EAS cloud build (needs `eas login`)
 #   make test-phone -> run the fake-phone test against the running server
 #   make install-uinput -> Linux host setup for /dev/uinput (sudo)
+#   make install    -> Linux: desktop app to ~/.local/bin + menu entry + icon (no sudo)
+#   make uninstall
 
 BIN     := pc-control-server
 DBIN    := pc-control-desktop
@@ -28,7 +30,7 @@ CLIENT      := ../client
 ANDROID_DIR := $(CLIENT)/android
 APK_OUT     := $(ANDROID_DIR)/app/build/outputs/apk/release/app-release.apk
 
-.PHONY: build all linux windows darwin desktop desktop-linux desktop-windows desktop-darwin apk apk-eas icons clean clean-apk test-phone preflight install-uinput
+.PHONY: build all linux windows darwin desktop desktop-linux desktop-windows desktop-darwin apk apk-eas icons clean clean-apk test-phone preflight install-uinput install uninstall
 
 build: $(DIST)/$(BIN)
 
@@ -108,6 +110,18 @@ icons:
 	go run ./tools/icongen $(CLIENT)/assets/icon.png 1024 tile
 	go run ./tools/icongen $(CLIENT)/assets/adaptive-icon.png 1024 foreground
 	go run ./tools/icongen $(CLIENT)/assets/splash-icon.png 512 foreground
+
+# Per-user install on Linux: binary, launcher entry, icon. Autostart is a switch in the app.
+PREFIX ?= $(HOME)/.local
+install: $(DIST)/$(DBIN)
+	install -Dm755 $(DIST)/$(DBIN) $(PREFIX)/bin/$(DBIN)
+	install -Dm644 scripts/pc-control.desktop $(PREFIX)/share/applications/pc-control.desktop
+	install -Dm644 internal/desktop/assets/icon.png $(PREFIX)/share/icons/hicolor/256x256/apps/pc-control.png
+	-update-desktop-database $(PREFIX)/share/applications 2>/dev/null
+	@echo "installed: $(PREFIX)/bin/$(DBIN); find 'PC Control' in your app launcher"
+
+uninstall:
+	rm -f $(PREFIX)/bin/$(DBIN) $(PREFIX)/share/applications/pc-control.desktop $(PREFIX)/share/icons/hicolor/256x256/apps/pc-control.png
 
 # One-time Linux host setup (module autoload, udev rule, group, .env gid). Needs sudo.
 install-uinput:

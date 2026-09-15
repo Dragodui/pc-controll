@@ -9,7 +9,7 @@ Remote control of a PC from a phone. Go server + native C input backend (`server
 - `server/internal/server` — service core: `New(Options)`, `Start()`, `Stop(ctx)`, `Clients()`; emits `events.Event` to a handler. `Run()` is the CLI wrapper (signals, banner).
 - `server/internal/events` — event kinds + nil-safe `Handler.Emit`.
 - `server/internal/appconfig` — desktop settings as JSON in `os.UserConfigDir()/pc-control/config.json`; first run imports `.env`.
-- `server/internal/desktop` — Fyne UI: `app.go` (window), `theme.go` (palette from the macOS-style design, light/dark tokens), `widgets.go` (toggle switch, grouped rows with hairlines, section headers), `controller.go` (server lifecycle + log ring), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`. Design source: a Claude Design export; keep new UI inside the row/group vocabulary.
+- `server/internal/desktop` — Fyne UI; `instance.go` is the single-instance socket (`$XDG_RUNTIME_DIR/pc-control-desktop.sock`, tcp 47812 on Windows): `app.go` (window), `theme.go` (palette from the macOS-style design, light/dark tokens), `widgets.go` (toggle switch, grouped rows with hairlines, section headers), `controller.go` (server lifecycle + log ring), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`. Design source: a Claude Design export; keep new UI inside the row/group vocabulary.
 - `server/internal/web` — WS handler: JSON `protocol.Command` → `input.Backend` calls. Token checked per message.
 - `server/internal/input` — Go `Backend` interface; `cbackend.go` is the cgo bridge (build tag `cgo && pcinput`), `cbackend_disabled.go` the fallback. `pcinput_bridge.c` `#include`s every C source so cgo compiles them in one unit.
 - `server/internal/config` — env config; `dotenv.go` reads `.env` from cwd or next to the executable without overriding existing env vars.
@@ -32,6 +32,7 @@ All from `server/`:
 make                 # binary for this OS → dist/
 make linux windows   # cross-compile (windows needs x86_64-w64-mingw32-gcc)
 make darwin          # only on a Mac
+make install         # Linux per-user install: ~/.local/bin + launcher entry + icon
 make desktop         # Fyne tray app; Linux needs libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev; windows build adds -H=windowsgui
 make apk             # expo prebuild + gradle → dist/pc-control-client.apk
 make preflight       # host checks; run before blaming code

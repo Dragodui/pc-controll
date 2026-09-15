@@ -114,6 +114,12 @@ func (c *controller) handleEvent(e events.Event) {
 	}
 }
 
+func (c *controller) appendLine(line string) {
+	c.mu.Lock()
+	c.appendLocked(line)
+	c.mu.Unlock()
+}
+
 func (c *controller) appendLocked(line string) {
 	c.lines = append(c.lines, line)
 	if len(c.lines) > logLines {

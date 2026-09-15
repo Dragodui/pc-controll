@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=PC Control
+Comment=Control this computer from your phone
+Exec=pc-control-desktop
+Icon=pc-control
+Terminal=false
+Categories=Utility;Network;
+Keywords=remote;phone;trackpad;
+StartupWMClass=PC Control

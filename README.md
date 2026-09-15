@@ -30,6 +30,11 @@ Everything is a single static file per platform; the C backend is compiled in.
 "start server when the app opens", "launch at login", the addresses to enter on the phone, connected phones, and a log.
 Settings live in `config.json` under the OS config directory (`~/.config/pc-control`, `~/Library/Application Support/pc-control`, `%AppData%\pc-control`).
 On first run it imports a `.env` next to the executable if there is one. `--hidden` starts minimized to the tray (used by autostart).
+Only one instance runs: launching it again brings the existing window to the front.
+
+Linux, from source: `cd server && make install` puts the binary in `~/.local/bin`, adds a launcher entry
+("PC Control") and the icon. `make uninstall` removes them. From a release download, copy the binary to
+`~/.local/bin/pc-control-desktop` and run it once; enable "Open at login" in the window.
 
 ### CLI server
 

@@ -53,7 +53,11 @@ type ui struct {
 }
 
 // Run starts the desktop app. hidden=true starts minimized to the tray.
+// If an instance is already running, it is asked to show its window instead.
 func Run(hidden bool) error {
+	if askRunningInstanceToShow() {
+		return nil
+	}
 	cfg, err := appconfig.Load()
 	if err != nil {
 		return err
@@ -81,6 +85,15 @@ func Run(hidden bool) error {
 
 	u.ctl.onChange = func() { fyne.Do(u.refresh) }
 	u.refresh()
+
+	stopListening, err := listenForShowRequests(func() {
+		fyne.Do(func() { u.win.Show(); u.win.RequestFocus() })
+	})
+	if err != nil {
+		u.ctl.appendLine("single-instance socket unavailable: " + err.Error())
+	} else {
+		defer stopListening()
+	}
 
 	if cfg.StartServerOnLaunch {
 		u.startServer()
