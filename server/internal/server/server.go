@@ -237,3 +237,19 @@ func firstNonEmpty(value string, fallback string) string {
 	}
 	return value
 }
+
+// PrimaryIPv4 is the address the OS would use to reach the LAN, which is the
+// one to show the user. Falls back to the first non-loopback IPv4.
+func PrimaryIPv4() string {
+	if conn, err := net.Dial("udp4", "192.168.255.255:1"); err == nil {
+		defer conn.Close()
+		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && addr.IP != nil {
+			return addr.IP.String()
+		}
+	}
+	ips := LocalIPv4s()
+	if len(ips) > 0 {
+		return ips[0]
+	}
+	return "127.0.0.1"
+}

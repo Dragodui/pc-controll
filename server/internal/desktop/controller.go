@@ -53,10 +53,10 @@ func (c *controller) logText() string {
 
 // backendStatus is the one-line explanation shown under the Start button.
 func (c *controller) backendStatus() (ok bool, text string) {
-	if unavailable, is := c.backend.(input.UnavailableBackend); is {
-		return false, unavailableHint(unavailable)
+	if _, is := c.backend.(input.UnavailableBackend); is {
+		return false, platformHint()
 	}
-	return true, "input backend: " + c.backend.Name()
+	return true, c.backend.Name()
 }
 
 func (c *controller) start(cfg appconfig.Config) error {
@@ -119,12 +119,4 @@ func (c *controller) appendLocked(line string) {
 	if len(c.lines) > logLines {
 		c.lines = c.lines[len(c.lines)-logLines:]
 	}
-}
-
-func unavailableHint(b input.UnavailableBackend) string {
-	msg := "input backend unavailable"
-	if b.Err != nil {
-		msg += ": " + b.Err.Error()
-	}
-	return msg + "\n" + platformHint()
 }

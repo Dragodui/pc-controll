@@ -1,5 +1,5 @@
 package desktop
 
 func platformHint() string {
-	return "Fix: rebuild with -tags pcinput."
+	return "Input backend unavailable. Rebuild with -tags pcinput."
 }

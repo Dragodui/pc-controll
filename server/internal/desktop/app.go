@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	fynedesktop "fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Dragodui/pc-controll/internal/appconfig"
@@ -28,17 +30,26 @@ type ui struct {
 	cfg  appconfig.Config
 	tray fynedesktop.App
 
+	power    *toggle
+	subtitle *canvas.Text
+
+	address        *canvas.Text
+	sharedPassword *canvas.Text
+	revealed       bool
+
 	name          *widget.Entry
 	port          *widget.Entry
 	password      *widget.Entry
 	startOnLaunch *widget.Check
 	launchAtLogin *widget.Check
-	toggle        *widget.Button
-	status        *widget.Label
-	addresses     *widget.Label
-	clients       *widget.Label
-	log           *widget.Label
-	logScroll     *container.Scroll
+
+	devices *fyne.Container
+	// runningCfg is what the server was started with; differs from cfg after edits.
+	runningCfg appconfig.Config
+
+	log        *widget.Label
+	logBox     fyne.CanvasObject
+	logVisible bool
 }
 
 // Run starts the desktop app. hidden=true starts minimized to the tray.
@@ -53,10 +64,11 @@ func Run(hidden bool) error {
 		ctl: newController(),
 		cfg: cfg,
 	}
+	u.app.Settings().SetTheme(appTheme{})
 	u.app.SetIcon(assets.Icon)
 	u.win = u.app.NewWindow("PC Control")
 	u.win.SetIcon(assets.Icon)
-	u.win.Resize(fyne.NewSize(460, 560))
+	u.win.Resize(fyne.NewSize(420, 520))
 	u.win.SetContent(u.build())
 	// Closing the window keeps the server running in the tray; Quit is in the tray menu.
 	u.win.SetCloseIntercept(u.win.Hide)
@@ -82,20 +94,56 @@ func Run(hidden bool) error {
 }
 
 func (u *ui) build() fyne.CanvasObject {
-	u.name = widget.NewEntry()
-	u.name.SetText(u.cfg.Name)
-	u.port = widget.NewEntry()
-	u.port.SetText(strconv.Itoa(u.cfg.Port))
-	u.password = widget.NewPasswordEntry()
-	u.password.SetText(u.cfg.Password)
+	// Header: title + status line left, power switch right.
+	u.power = newToggle(func(on bool) {
+		if on {
+			if !u.applyFields() {
+				u.power.SetOn(false)
+				return
+			}
+			u.save()
+			u.startServer()
+		} else {
+			u.ctl.stop()
+			u.refresh()
+		}
+	})
+	u.subtitle = secondaryText("")
+	header := container.NewBorder(nil, nil, nil,
+		container.New(layout.NewCustomPaddedLayout(1, 0, 0, 0), u.power),
+		container.NewVBox(titleText("PC Control"), container.New(layout.NewCustomPaddedLayout(3, 0, 0, 0), u.subtitle)),
+	)
 
-	u.startOnLaunch = widget.NewCheck("Start server when the app opens", func(v bool) {
+	// Connect from your phone.
+	u.address = monoText("")
+	u.sharedPassword = monoText("")
+	eye := iconButton(theme.VisibilityIcon(), func() {
+		u.revealed = !u.revealed
+		u.refresh()
+	})
+	connect := group(
+		row("Address", u.address),
+		row("Password", container.NewHBox(u.sharedPassword, eye)),
+	)
+
+	// Settings.
+	var nameBox, portBox, passBox fyne.CanvasObject
+	u.name, nameBox = inlineEntry(160, false)
+	u.port, portBox = inlineEntry(70, false)
+	u.password, passBox = inlineEntry(160, true)
+	u.name.SetText(u.cfg.Name)
+	u.port.SetText(strconv.Itoa(u.cfg.Port))
+	u.password.SetText(u.cfg.Password)
+	for _, e := range []*widget.Entry{u.name, u.port, u.password} {
+		e.OnChanged = func(string) { u.saveIfValid() }
+	}
+
+	u.startOnLaunch = widget.NewCheck("", func(v bool) {
 		u.cfg.StartServerOnLaunch = v
 		u.save()
 	})
 	u.startOnLaunch.SetChecked(u.cfg.StartServerOnLaunch)
-
-	u.launchAtLogin = widget.NewCheck("Launch at login (minimized to tray)", func(v bool) {
+	u.launchAtLogin = widget.NewCheck("", func(v bool) {
 		if err := setLaunchAtLogin(v); err != nil {
 			dialog.ShowError(fmt.Errorf("autostart: %w", err), u.win)
 			u.launchAtLogin.SetChecked(!v)
@@ -106,64 +154,78 @@ func (u *ui) build() fyne.CanvasObject {
 	})
 	u.launchAtLogin.SetChecked(u.cfg.LaunchAtLogin)
 
-	u.toggle = widget.NewButton("Start", u.onToggle)
-	u.toggle.Importance = widget.HighImportance
-	saveButton := widget.NewButton("Save", func() {
-		if u.applyFields() {
-			u.save()
-		}
-	})
+	settings := group(
+		row("Name", nameBox),
+		row("Port", portBox),
+		row("Password", passBox),
+		row("Start server when app opens", u.startOnLaunch),
+		row("Open at login", u.launchAtLogin),
+	)
 
-	u.status = widget.NewLabel("")
-	u.status.Wrapping = fyne.TextWrapWord
-	u.addresses = widget.NewLabel("")
-	u.addresses.TextStyle = fyne.TextStyle{Monospace: true}
-	u.clients = widget.NewLabel("")
+	// Connected devices: rebuilt on refresh.
+	u.devices = container.NewStack()
+
+	// Log, collapsed by default.
 	u.log = widget.NewLabel("")
 	u.log.TextStyle = fyne.TextStyle{Monospace: true}
 	u.log.Wrapping = fyne.TextWrapWord
-	u.logScroll = container.NewVScroll(u.log)
-	u.logScroll.SetMinSize(fyne.NewSize(0, 160))
+	logScroll := container.NewVScroll(u.log)
+	logScroll.SetMinSize(fyne.NewSize(0, 120))
+	u.logBox = logScroll
+	u.logBox.Hide()
+	showLog := linkButton("Show log", func() {
+		u.logVisible = !u.logVisible
+		if u.logVisible {
+			u.logBox.Show()
+		} else {
+			u.logBox.Hide()
+		}
+	})
 
-	form := widget.NewForm(
-		widget.NewFormItem("PC name", u.name),
-		widget.NewFormItem("Port", u.port),
-		widget.NewFormItem("Password", u.password),
+	content := container.NewVBox(
+		header,
+		sectionHeader("Connect from your phone"), connect,
+		sectionHeader("Settings"), settings,
+		sectionHeader("Connected devices"), u.devices,
+		container.New(layout.NewCustomPaddedLayout(groupGap, 0, 0, 0), showLog),
+		u.logBox,
 	)
-
-	return container.NewVBox(
-		form,
-		u.startOnLaunch,
-		u.launchAtLogin,
-		container.NewGridWithColumns(2, u.toggle, saveButton),
-		u.status,
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Connect from the phone", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		u.addresses,
-		widget.NewLabelWithStyle("Connected phones", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		u.clients,
-		widget.NewLabelWithStyle("Log", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		u.logScroll,
-	)
+	padded := container.New(layout.NewCustomPaddedLayout(14, 16, 16, 16), content)
+	return container.NewVScroll(padded)
 }
 
 // applyFields validates the entries into cfg. Shows a dialog and returns false on bad input.
 func (u *ui) applyFields() bool {
-	port, err := strconv.Atoi(strings.TrimSpace(u.port.Text))
+	next, err := u.fieldsConfig()
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("port must be a number"), u.win)
-		return false
-	}
-	next := u.cfg
-	next.Name = strings.TrimSpace(u.name.Text)
-	next.Port = port
-	next.Password = u.password.Text
-	if err := next.Validate(); err != nil {
 		dialog.ShowError(err, u.win)
 		return false
 	}
 	u.cfg = next
 	return true
+}
+
+func (u *ui) fieldsConfig() (appconfig.Config, error) {
+	port, err := strconv.Atoi(strings.TrimSpace(u.port.Text))
+	if err != nil {
+		return appconfig.Config{}, fmt.Errorf("port must be a number")
+	}
+	next := u.cfg
+	next.Name = strings.TrimSpace(u.name.Text)
+	next.Port = port
+	next.Password = u.password.Text
+	return next, next.Validate()
+}
+
+// saveIfValid persists edits as they are typed; invalid intermediate states are ignored.
+func (u *ui) saveIfValid() {
+	next, err := u.fieldsConfig()
+	if err != nil {
+		return
+	}
+	u.cfg = next
+	u.save()
+	u.refresh()
 }
 
 func (u *ui) save() {
@@ -188,66 +250,66 @@ func (u *ui) onToggle() {
 func (u *ui) startServer() {
 	if err := u.ctl.start(u.cfg); err != nil {
 		dialog.ShowError(err, u.win)
+	} else {
+		u.runningCfg = u.cfg
 	}
 	u.refresh()
+}
+
+func (u *ui) needsRestart() bool {
+	return u.cfg.Name != u.runningCfg.Name || u.cfg.Port != u.runningCfg.Port || u.cfg.Password != u.runningCfg.Password
 }
 
 // refresh redraws state-dependent widgets. Must run on the Fyne thread.
 func (u *ui) refresh() {
 	running := u.ctl.running()
-	if running {
-		u.toggle.SetText("Stop")
-		u.toggle.Importance = widget.DangerImportance
-	} else {
-		u.toggle.SetText("Start")
-		u.toggle.Importance = widget.HighImportance
-	}
-	u.toggle.Refresh()
-	for _, e := range []*widget.Entry{u.name, u.port, u.password} {
-		if running {
-			e.Disable()
-		} else {
-			e.Enable()
-		}
-	}
+	u.power.SetOn(running)
 
 	ok, backendText := u.ctl.backendStatus()
 	switch {
 	case !ok:
-		u.status.SetText("⚠ " + backendText)
-		u.status.Importance = widget.WarningImportance
+		u.subtitle.Text = backendText
+	case running && u.needsRestart():
+		u.subtitle.Text = fmt.Sprintf("Running · port %d · restart to apply changes", u.runningCfg.Port)
 	case running:
-		u.status.SetText("Running on port " + strconv.Itoa(u.cfg.Port) + " · " + backendText)
-		u.status.Importance = widget.SuccessImportance
+		u.subtitle.Text = fmt.Sprintf("Running · port %d", u.runningCfg.Port)
 	default:
-		u.status.SetText("Stopped · " + backendText)
-		u.status.Importance = widget.MediumImportance
+		u.subtitle.Text = "Stopped"
 	}
-	u.status.Refresh()
+	u.subtitle.Refresh()
 
-	var addrs []string
-	for _, ip := range server.LocalIPv4s() {
-		addrs = append(addrs, fmt.Sprintf("%s:%d", ip, u.cfg.Port))
-	}
-	if len(addrs) == 0 {
-		addrs = []string{"no network"}
-	}
-	u.addresses.SetText(strings.Join(addrs, "\n") + "\nPassword: " + u.cfg.Password)
+	u.refreshShared()
 
 	clients := u.ctl.clients()
-	if len(clients) == 0 {
-		u.clients.SetText("none")
-	} else {
-		var lines []string
-		for _, c := range clients {
-			lines = append(lines, fmt.Sprintf("%s  since %s", c.Addr, c.Since.Format(time.Kitchen)))
-		}
-		u.clients.SetText(strings.Join(lines, "\n"))
+	rows := make([]fyne.CanvasObject, 0, len(clients))
+	for _, c := range clients {
+		rows = append(rows, row(c.Addr, secondaryText("since "+c.Since.Format("15:04"))))
 	}
+	if len(rows) == 0 {
+		rows = append(rows, rowText("No devices connected"))
+	}
+	u.devices.Objects = []fyne.CanvasObject{group(rows...)}
+	u.devices.Refresh()
 
 	u.log.SetText(u.ctl.logText())
-	u.logScroll.ScrollToBottom()
+	// SetContent shows the whole tree once; re-apply the collapsed state.
+	if u.logVisible {
+		u.logBox.Show()
+	} else {
+		u.logBox.Hide()
+	}
 	u.refreshTray()
+}
+
+func (u *ui) refreshShared() {
+	u.address.Text = fmt.Sprintf("%s:%d", server.PrimaryIPv4(), u.cfg.Port)
+	u.address.Refresh()
+	if u.revealed {
+		u.sharedPassword.Text = u.cfg.Password
+	} else {
+		u.sharedPassword.Text = strings.Repeat("•", len([]rune(u.cfg.Password)))
+	}
+	u.sharedPassword.Refresh()
 }
 
 func (u *ui) refreshTray() {

@@ -9,7 +9,7 @@ Remote control of a PC from a phone. Go server + native C input backend (`server
 - `server/internal/server` — service core: `New(Options)`, `Start()`, `Stop(ctx)`, `Clients()`; emits `events.Event` to a handler. `Run()` is the CLI wrapper (signals, banner).
 - `server/internal/events` — event kinds + nil-safe `Handler.Emit`.
 - `server/internal/appconfig` — desktop settings as JSON in `os.UserConfigDir()/pc-control/config.json`; first run imports `.env`.
-- `server/internal/desktop` — Fyne UI (`app.go`), server lifecycle + log ring (`controller.go`), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`.
+- `server/internal/desktop` — Fyne UI: `app.go` (window), `theme.go` (palette from the macOS-style design, light/dark tokens), `widgets.go` (toggle switch, grouped rows with hairlines, section headers), `controller.go` (server lifecycle + log ring), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`. Design source: a Claude Design export; keep new UI inside the row/group vocabulary.
 - `server/internal/web` — WS handler: JSON `protocol.Command` → `input.Backend` calls. Token checked per message.
 - `server/internal/input` — Go `Backend` interface; `cbackend.go` is the cgo bridge (build tag `cgo && pcinput`), `cbackend_disabled.go` the fallback. `pcinput_bridge.c` `#include`s every C source so cgo compiles them in one unit.
 - `server/internal/config` — env config; `dotenv.go` reads `.env` from cwd or next to the executable without overriding existing env vars.

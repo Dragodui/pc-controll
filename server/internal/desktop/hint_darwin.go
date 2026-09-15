@@ -1,5 +1,5 @@
 package desktop
 
 func platformHint() string {
-	return "Fix: System Settings > Privacy & Security > Accessibility, enable this app, then restart it."
+	return "Accessibility permission required. Enable in Privacy & Security, then restart."
 }
