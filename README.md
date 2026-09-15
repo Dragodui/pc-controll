@@ -126,7 +126,7 @@ make              # dist/pc-control-server for this OS
 make linux        # dist/pc-control-server-linux-amd64
 make windows      # dist/pc-control-server-windows-amd64.exe (cross-compile, needs mingw-w64)
 make darwin       # run on a Mac
-make desktop      # dist/pc-control-desktop (Fyne; Linux needs GL/X11 headers: libgl1-mesa-dev xorg-dev)
+make desktop      # dist/pc-control-desktop (Fyne; Linux needs GL/X11/Wayland headers: libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev)
 make desktop-linux desktop-windows desktop-darwin
 make all          # linux + windows, server + desktop
 ```

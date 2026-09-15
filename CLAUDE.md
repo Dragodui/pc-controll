@@ -32,7 +32,7 @@ All from `server/`:
 make                 # binary for this OS → dist/
 make linux windows   # cross-compile (windows needs x86_64-w64-mingw32-gcc)
 make darwin          # only on a Mac
-make desktop         # Fyne tray app; Linux needs libgl1-mesa-dev xorg-dev; windows build adds -H=windowsgui
+make desktop         # Fyne tray app; Linux needs libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev; windows build adds -H=windowsgui
 make apk             # expo prebuild + gradle → dist/pc-control-client.apk
 make preflight       # host checks; run before blaming code
 make test-phone      # preflight + fake-phone + log review

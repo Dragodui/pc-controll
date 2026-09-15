@@ -44,7 +44,7 @@ jobs:
           cache-dependency-path: server/go.sum
       - name: Install Linux GL/X11 headers (Fyne)
         if: matrix.name == 'linux-amd64'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libxkbcommon-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev
       - name: Install mingw-w64
         if: matrix.name == 'windows-amd64'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
