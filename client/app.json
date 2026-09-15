@@ -7,8 +7,9 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#2b6cf0"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +24,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2b6cf0"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -61,6 +63,7 @@
       "eas": {
         "projectId": "db12a56e-3e01-40e1-9600-f54cb2a02936"
       }
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }

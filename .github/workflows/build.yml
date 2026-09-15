@@ -20,32 +20,41 @@ jobs:
         include:
           - name: linux-amd64
             os: ubuntu-latest
-            target: linux
-            artifact: pc-control-server-linux-amd64
+            targets: linux desktop-linux
+            artifacts: |
+              server/dist/pc-control-server-linux-amd64
+              server/dist/pc-control-desktop-linux-amd64
           - name: windows-amd64
             os: ubuntu-latest
-            target: windows
-            artifact: pc-control-server-windows-amd64.exe
+            targets: windows desktop-windows
+            artifacts: |
+              server/dist/pc-control-server-windows-amd64.exe
+              server/dist/pc-control-desktop-windows-amd64.exe
           - name: darwin-arm64
             os: macos-latest
-            target: darwin
-            artifact: pc-control-server-darwin-arm64
+            targets: darwin desktop-darwin
+            artifacts: |
+              server/dist/pc-control-server-darwin-arm64
+              server/dist/pc-control-desktop-darwin-arm64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
+      - name: Install Linux GL/X11 headers (Fyne)
+        if: matrix.name == 'linux-amd64'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libxkbcommon-dev
       - name: Install mingw-w64
-        if: matrix.target == 'windows'
+        if: matrix.name == 'windows-amd64'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
       - name: Build
         working-directory: server
-        run: make ${{ matrix.target }}
+        run: make ${{ matrix.targets }}
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: server/dist/${{ matrix.artifact }}
+          name: ${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
   apk:

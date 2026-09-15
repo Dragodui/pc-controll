@@ -6,12 +6,16 @@
 #   make windows    -> dist/pc-control-server-windows-amd64.exe  (needs mingw-w64)
 #   make darwin     -> dist/pc-control-server-darwin-arm64        (run on a Mac)
 #   make all        -> linux + windows
+#   make desktop    -> dist/pc-control-desktop (tray app) for the current OS
+#   make desktop-linux | desktop-windows | desktop-darwin
 #   make apk        -> dist/pc-control-client.apk (local Gradle build, needs Android SDK + JDK 17)
 #   make apk-eas    -> same via EAS cloud build (needs `eas login`)
 #   make test-phone -> run the fake-phone test against the running server
 #   make install-uinput -> Linux host setup for /dev/uinput (sudo)
 
 BIN     := pc-control-server
+DBIN    := pc-control-desktop
+DPKG    := ./cmd/desktop
 DIST    := dist
 TAGS    := pcinput
 LDFLAGS := -s -w
@@ -24,11 +28,11 @@ CLIENT      := ../client
 ANDROID_DIR := $(CLIENT)/android
 APK_OUT     := $(ANDROID_DIR)/app/build/outputs/apk/release/app-release.apk
 
-.PHONY: build all linux windows darwin apk apk-eas clean clean-apk test-phone preflight install-uinput
+.PHONY: build all linux windows darwin desktop desktop-linux desktop-windows desktop-darwin apk apk-eas icons clean clean-apk test-phone preflight install-uinput
 
 build: $(DIST)/$(BIN)
 
-all: linux windows
+all: linux windows desktop-linux desktop-windows
 
 linux:   $(DIST)/$(BIN)-linux-amd64
 windows: $(DIST)/$(BIN)-windows-amd64.exe
@@ -50,6 +54,28 @@ $(DIST)/$(BIN)-windows-amd64.exe: $(SRC) | $(DIST)
 # Cross-compiling to macOS needs osxcross; simplest is to run this target on a Mac.
 $(DIST)/$(BIN)-darwin-arm64: $(SRC) | $(DIST)
 	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+
+# --- Desktop (Fyne tray app) ---------------------------------------------
+# Linux build needs GL/X11 headers: mesa + libx11/libxcursor/libxrandr/libxinerama/libxi (Debian: libgl1-mesa-dev xorg-dev).
+
+desktop:         $(DIST)/$(DBIN)
+desktop-linux:   $(DIST)/$(DBIN)-linux-amd64
+desktop-windows: $(DIST)/$(DBIN)-windows-amd64.exe
+desktop-darwin:  $(DIST)/$(DBIN)-darwin-arm64
+
+$(DIST)/$(DBIN): $(SRC) | $(DIST)
+	CGO_ENABLED=1 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
+
+$(DIST)/$(DBIN)-linux-amd64: $(SRC) | $(DIST)
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
+
+# -H=windowsgui: no console window behind the tray app.
+$(DIST)/$(DBIN)-windows-amd64.exe: $(SRC) | $(DIST)
+	@command -v $(MINGW) >/dev/null || { echo "missing $(MINGW): install mingw-w64-gcc"; exit 1; }
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$(MINGW) go build -tags $(TAGS) -ldflags="$(LDFLAGS) -H=windowsgui" -o $@ $(DPKG)
+
+$(DIST)/$(DBIN)-darwin-arm64: $(SRC) | $(DIST)
+	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
 
 # --- Android client -------------------------------------------------------
 # expo prebuild generates $(ANDROID_DIR) (gitignored), then Gradle builds a
@@ -75,6 +101,13 @@ apk-eas:
 
 clean-apk:
 	rm -rf $(ANDROID_DIR) $(DIST)/pc-control-client.apk
+
+# Regenerate the shared icon for the tray app and the Android app from tools/icongen.
+icons:
+	go run ./tools/icongen internal/desktop/assets/icon.png 256 tile
+	go run ./tools/icongen $(CLIENT)/assets/icon.png 1024 tile
+	go run ./tools/icongen $(CLIENT)/assets/adaptive-icon.png 1024 foreground
+	go run ./tools/icongen $(CLIENT)/assets/splash-icon.png 512 foreground
 
 # One-time Linux host setup (module autoload, udev rule, group, .env gid). Needs sudo.
 install-uinput:

@@ -15,18 +15,31 @@ A Go server with a native C input backend runs on the computer; an Expo (React N
 ## Quick start
 
 1. Download from [Releases](https://github.com/Dragodui/pc-controll/releases):
-   - `pc-control-server-linux-amd64`, `pc-control-server-windows-amd64.exe`, or `pc-control-server-darwin-arm64`
+   - `pc-control-desktop-<os>` — tray app with a settings window (recommended on a PC you sit at)
+   - `pc-control-server-<os>` — headless CLI, for Docker/servers/scripts
    - `pc-control-client.apk` (Android, arm64)
-2. Put a `.env` next to the server binary:
-   ```env
-   WS_PORT=1212
-   SERVER_PASSWORD=1234
-   PC_NAME=My PC
-   ```
-3. Do the one-time OS setup below, then run the binary. It prints its IP addresses.
-4. Install the APK, connect the phone to the same Wi-Fi, pick the PC from the list (or add `IP:1212` manually) and enter the password.
+2. Do the one-time OS setup below (Linux: uinput access, macOS: Accessibility).
+3. Run the desktop app. It generates a password, shows `IP:port` to type into the phone, and starts the server. Close the window to keep it in the tray.
+4. Install the APK, connect the phone to the same Wi-Fi, pick the PC from the list (or add `IP:port` manually) and enter the password.
 
 Everything is a single static file per platform; the C backend is compiled in.
+
+### Desktop app
+
+`pc-control-desktop` wraps the same server in a tray icon and a window: PC name, port, password, Start/Stop,
+"start server when the app opens", "launch at login", the addresses to enter on the phone, connected phones, and a log.
+Settings live in `config.json` under the OS config directory (`~/.config/pc-control`, `~/Library/Application Support/pc-control`, `%AppData%\pc-control`).
+On first run it imports a `.env` next to the executable if there is one. `--hidden` starts minimized to the tray (used by autostart).
+
+### CLI server
+
+`pc-control-server` reads `.env` next to the binary or from the working directory:
+
+```env
+WS_PORT=1212
+SERVER_PASSWORD=1234
+PC_NAME=My PC
+```
 
 ## Server
 
@@ -113,7 +126,9 @@ make              # dist/pc-control-server for this OS
 make linux        # dist/pc-control-server-linux-amd64
 make windows      # dist/pc-control-server-windows-amd64.exe (cross-compile, needs mingw-w64)
 make darwin       # run on a Mac
-make all          # linux + windows
+make desktop      # dist/pc-control-desktop (Fyne; Linux needs GL/X11 headers: libgl1-mesa-dev xorg-dev)
+make desktop-linux desktop-windows desktop-darwin
+make all          # linux + windows, server + desktop
 ```
 
 Or directly: `go build -tags pcinput ./cmd`. Without `-tags pcinput` the server builds with no input backend.
