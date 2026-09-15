@@ -1,25 +1,35 @@
 package discovery
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/grandcat/zeroconf"
 )
 
-func StartMDNS(pcName string, port int) {
+const ServiceType = "_remotepad._tcp"
+
+// Advertiser announces the server over mDNS until Shutdown is called.
+type Advertiser struct {
+	server *zeroconf.Server
+}
+
+func StartMDNS(pcName string, port int) (*Advertiser, error) {
 	server, err := zeroconf.Register(
 		pcName,
-		"_remotepad._tcp",
+		ServiceType,
 		"local.",
 		port,
 		[]string{"txtv=1", "app=go-remote"},
 		nil,
 	)
 	if err != nil {
-		log.Fatalf("mDNS Error: %v", err)
+		return nil, fmt.Errorf("mDNS register: %w", err)
 	}
-	defer server.Shutdown()
+	return &Advertiser{server: server}, nil
+}
 
-	log.Printf("mDNS: Service registered as '%s'", pcName)
-	select {}
+func (a *Advertiser) Shutdown() {
+	if a != nil && a.server != nil {
+		a.server.Shutdown()
+	}
 }

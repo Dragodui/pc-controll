@@ -3,24 +3,39 @@ package web
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"sort"
+	"sync"
+	"time"
 
+	"github.com/Dragodui/pc-controll/internal/events"
 	"github.com/Dragodui/pc-controll/internal/input"
 	"github.com/Dragodui/pc-controll/internal/protocol"
 	"github.com/gorilla/websocket"
 )
 
+// Client is a phone currently connected over WebSocket.
+type Client struct {
+	Addr  string
+	Since time.Time
+}
+
 type Server struct {
 	serverPassword string
 	backend        input.Backend
 	upgrader       websocket.Upgrader
+	emit           events.Handler
+
+	mu      sync.Mutex
+	clients map[string]Client
 }
 
-func NewServer(serverPassword string, backend input.Backend) *Server {
+func NewServer(serverPassword string, backend input.Backend, emit events.Handler) *Server {
 	return &Server{
 		serverPassword: serverPassword,
 		backend:        backend,
+		emit:           emit,
+		clients:        make(map[string]Client),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
@@ -29,20 +44,47 @@ func NewServer(serverPassword string, backend input.Backend) *Server {
 	}
 }
 
+// Clients returns connected phones, oldest first.
+func (s *Server) Clients() []Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := make([]Client, 0, len(s.clients))
+	for _, c := range s.clients {
+		list = append(list, c)
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].Since.Before(list[j].Since) })
+	return list
+}
+
+func (s *Server) addClient(addr string) {
+	s.mu.Lock()
+	s.clients[addr] = Client{Addr: addr, Since: time.Now()}
+	s.mu.Unlock()
+	s.emit.Emit(events.ClientConnected, addr, "client connected")
+}
+
+func (s *Server) removeClient(addr string, reason error) {
+	s.mu.Lock()
+	delete(s.clients, addr)
+	s.mu.Unlock()
+	s.emit.Emit(events.ClientDisconnected, addr, fmt.Sprintf("client disconnected: %v", reason))
+}
+
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WS Upgrade Error: %v", err)
+		s.emit.Emit(events.Info, r.RemoteAddr, fmt.Sprintf("WS upgrade error: %v", err))
 		return
 	}
 	defer conn.Close()
 
-	log.Printf("Client connected: %s", r.RemoteAddr)
+	addr := r.RemoteAddr
+	s.addClient(addr)
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Client disconnected: %v", err)
+			s.removeClient(addr, err)
 			break
 		}
 
@@ -51,11 +93,11 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if cmd.Token != s.serverPassword {
-			log.Printf("Access Denied: Invalid token from %s", r.RemoteAddr)
+			s.emit.Emit(events.AuthFailed, addr, "access denied: invalid token")
 			continue
 		}
 		if err := s.executeCommand(cmd); err != nil {
-			log.Printf("Input command failed [%s via %s]: %v", cmd.Type, s.backend.Name(), err)
+			s.emit.Emit(events.InputError, addr, fmt.Sprintf("input command failed [%s via %s]: %v", cmd.Type, s.backend.Name(), err))
 		}
 	}
 }
@@ -70,7 +112,6 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Health Check Ping from: %s", r.RemoteAddr)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "OK")
 }

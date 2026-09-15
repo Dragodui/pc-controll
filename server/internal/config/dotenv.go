@@ -11,6 +11,9 @@ import (
 // directory or next to the executable. Variables already present in the
 // environment win, so Docker's env_file and shell exports keep priority.
 // A missing file is not an error: the container image ships without one.
+// LoadDotEnv is exported for the desktop app, which imports a legacy .env on first run.
+func LoadDotEnv() (string, error) { return loadDotEnv() }
+
 func loadDotEnv() (string, error) {
 	for _, path := range dotEnvCandidates() {
 		file, err := os.Open(path)
