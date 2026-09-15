@@ -40,8 +40,8 @@ type ui struct {
 	name          *widget.Entry
 	port          *widget.Entry
 	password      *widget.Entry
-	startOnLaunch *widget.Check
-	launchAtLogin *widget.Check
+	startOnLaunch *toggle
+	launchAtLogin *toggle
 
 	devices *fyne.Container
 	// runningCfg is what the server was started with; differs from cfg after edits.
@@ -138,21 +138,22 @@ func (u *ui) build() fyne.CanvasObject {
 		e.OnChanged = func(string) { u.saveIfValid() }
 	}
 
-	u.startOnLaunch = widget.NewCheck("", func(v bool) {
+	u.startOnLaunch = newToggle(func(v bool) {
 		u.cfg.StartServerOnLaunch = v
+		u.startOnLaunch.SetOn(v)
 		u.save()
 	})
-	u.startOnLaunch.SetChecked(u.cfg.StartServerOnLaunch)
-	u.launchAtLogin = widget.NewCheck("", func(v bool) {
+	u.startOnLaunch.SetOn(u.cfg.StartServerOnLaunch)
+	u.launchAtLogin = newToggle(func(v bool) {
 		if err := setLaunchAtLogin(v); err != nil {
 			dialog.ShowError(fmt.Errorf("autostart: %w", err), u.win)
-			u.launchAtLogin.SetChecked(!v)
 			return
 		}
 		u.cfg.LaunchAtLogin = v
+		u.launchAtLogin.SetOn(v)
 		u.save()
 	})
-	u.launchAtLogin.SetChecked(u.cfg.LaunchAtLogin)
+	u.launchAtLogin.SetOn(u.cfg.LaunchAtLogin)
 
 	settings := group(
 		row("Name", nameBox),
