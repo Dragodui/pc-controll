@@ -173,7 +173,7 @@ func (u *ui) build() fyne.CanvasObject {
 		row("Port", portBox),
 		row("Password", passBox),
 		row("Start server when app opens", u.startOnLaunch),
-		row("Open at login", u.launchAtLogin),
+		row("Open at startup", u.launchAtLogin),
 	)
 
 	// Connected devices: rebuilt on refresh.
