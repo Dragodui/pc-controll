@@ -3,7 +3,7 @@
 //
 //	pc-control-desktop                 open the window
 //	pc-control-desktop --hidden        start minimized to the tray (used by autostart)
-//	pc-control-desktop --autostart on  register/unregister launch at login and exit
+//	pc-control-desktop --autostart on  register/unregister open at startup and exit
 package main
 
 import (
@@ -29,7 +29,7 @@ func main() {
 			if err := desktop.SetAutostart(args[i+1] == "on"); err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("launch at login:", args[i+1])
+			fmt.Println("open at startup:", args[i+1])
 			return
 		default:
 			fmt.Fprintf(os.Stderr, "unknown flag %q\n", args[i])

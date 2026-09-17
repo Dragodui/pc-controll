@@ -4,12 +4,9 @@ import { Gesture } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
-import Zeroconf from 'react-native-zeroconf';
+import { canDiscover, hostDevice, mdnsDiscover } from './discovery';
 
 const SERVER_PORT = 1212;
-const MDNS_TYPE = 'remotepad';
-const MDNS_PROTOCOL = 'tcp';
-const MDNS_DOMAIN = 'local.';
 
 export function useRemoteControl() {
   const [currentScreen, setCurrentScreen] = useState('list');
@@ -41,7 +38,6 @@ export function useRemoteControl() {
   const pendingScroll = useRef({ x: 0, y: 0 });
   const scrollAccum = useRef(0);
   const smoothMove = useRef({ x: 0, y: 0 });
-  const zeroconfRef = useRef(null);
   const appState = useRef(AppState.currentState);
 
   const send = (data) => {
@@ -100,36 +96,17 @@ export function useRemoteControl() {
     if (savedScrollSens) setScrollSensitivity(parseFloat(savedScrollSens));
     if (savedSmooth) setSmoothFactor(parseFloat(savedSmooth));
     if (savedDeadzone) setDeadzone(parseFloat(savedDeadzone));
-    if (savedDevices) {
-      const parsed = JSON.parse(savedDevices);
-      setDevices(parsed);
-      checkOnlineStatus(parsed);
+    let list = savedDevices ? JSON.parse(savedDevices) : [];
+    // Web build: the server that serves this page is a device by definition.
+    const host = hostDevice();
+    if (host && !list.some((d) => d.ip === host.ip && d.port === host.port)) {
+      list = [host, ...list];
+      await AsyncStorage.setItem('devices', JSON.stringify(list));
     }
-  };
-
-  const mdnsDiscover = () => {
-    return new Promise((resolve) => {
-      if (!zeroconfRef.current) zeroconfRef.current = new Zeroconf();
-      const zeroconf = zeroconfRef.current;
-      const found = new Map();
-
-      const onResolved = (service) => {
-        const ip = service.addresses?.find((address) => address.indexOf(':') === -1) || service.host;
-        if (!ip) return;
-        const id = `${ip}:${service.port}`;
-        if (!found.has(id)) {
-          found.set(id, { id, name: service.name, ip, port: service.port, pass: '', online: true });
-        }
-      };
-
-      zeroconf.on('resolved', onResolved);
-      zeroconf.scan(MDNS_TYPE, MDNS_PROTOCOL, MDNS_DOMAIN);
-      setTimeout(() => {
-        zeroconf.stop();
-        zeroconf.removeListener('resolved', onResolved);
-        resolve(Array.from(found.values()));
-      }, 2000);
-    });
+    if (list.length) {
+      setDevices(list);
+      checkOnlineStatus(list);
+    }
   };
 
   const smartScan = async () => {
@@ -143,13 +120,16 @@ export function useRemoteControl() {
       }
 
       const mdnsDevices = await mdnsDiscover();
-      const ipAddr = await Network.getIpAddressAsync();
-      const subnet = ipAddr.substring(0, ipAddr.lastIndexOf('.'));
+      // Browsers do not expose the local IP; scan the subnet of the page's host instead.
+      const ipAddr = canDiscover ? await Network.getIpAddressAsync() : hostDevice()?.ip;
       const scanPromises = [];
 
-      for (let i = 1; i < 255; i++) {
-        const testIp = `${subnet}.${i}`;
-        scanPromises.push(fetch(`http://${testIp}:${SERVER_PORT}/health`).then((res) => (res.ok ? testIp : null)).catch(() => null));
+      if (ipAddr && /^\d+\.\d+\.\d+\.\d+$/.test(ipAddr)) {
+        const subnet = ipAddr.substring(0, ipAddr.lastIndexOf('.'));
+        for (let i = 1; i < 255; i++) {
+          const testIp = `${subnet}.${i}`;
+          scanPromises.push(fetch(`http://${testIp}:${SERVER_PORT}/health`).then((res) => (res.ok ? testIp : null)).catch(() => null));
+        }
       }
 
       const foundIps = (await Promise.all(scanPromises)).filter((ip) => ip !== null);

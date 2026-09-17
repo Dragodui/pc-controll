@@ -42,6 +42,15 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
+      # The browser client is embedded into every server/desktop binary (make web).
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
       - name: Install Linux GL/X11 headers (Fyne)
         if: matrix.name == 'linux-amd64'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev

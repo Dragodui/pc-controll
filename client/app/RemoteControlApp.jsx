@@ -255,6 +255,9 @@ export default function RemoteControlApp() {
                         </GestureDetector>
 
                         <TouchableOpacity
+                            // Web: not keyboard-focusable, otherwise the Enter the server
+                            // presses re-triggers this button when the browser runs on the same PC.
+                            focusable={false}
                             onPress={() =>
                                 app.send({ type: "tap", key: "enter" })
                             }

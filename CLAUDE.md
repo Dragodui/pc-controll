@@ -10,6 +10,8 @@ Remote control of a PC from a phone. Go server + native C input backend (`server
 - `server/internal/events` — event kinds + nil-safe `Handler.Emit`.
 - `server/internal/appconfig` — desktop settings as JSON in `os.UserConfigDir()/pc-control/config.json`; first run imports `.env`.
 - `server/internal/desktop` — Fyne UI; `instance.go` is the single-instance socket (`$XDG_RUNTIME_DIR/pc-control-desktop.sock`, tcp 47812 on Windows): `app.go` (window), `theme.go` (palette from the macOS-style design, light/dark tokens), `widgets.go` (toggle switch, grouped rows with hairlines, section headers), `controller.go` (server lifecycle + log ring), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`. Design source: a Claude Design export; keep new UI inside the row/group vocabulary.
+- `server/internal/webui` — serves the embedded browser client at `/` (build tag `webui`, `dist/` copied there by `make web`, gitignored); placeholder page without the tag.
+- `client/app/discovery.js` / `discovery.web.js` — platform split: mDNS on native, `hostDevice()` from `location.host` on web. `client/public/` holds `manifest.json`, `sw.js`, PWA icons.
 - `server/internal/web` — WS handler: JSON `protocol.Command` → `input.Backend` calls. Token checked per message.
 - `server/internal/input` — Go `Backend` interface; `cbackend.go` is the cgo bridge (build tag `cgo && pcinput`), `cbackend_disabled.go` the fallback. `pcinput_bridge.c` `#include`s every C source so cgo compiles them in one unit.
 - `server/internal/config` — env config; `dotenv.go` reads `.env` from cwd or next to the executable without overriding existing env vars.
@@ -33,11 +35,12 @@ make                 # binary for this OS → dist/
 make linux windows   # cross-compile (windows needs x86_64-w64-mingw32-gcc)
 make darwin          # only on a Mac
 make install         # Linux per-user install: ~/.local/bin + launcher entry + icon
+make web             # expo export -p web → internal/webui/dist; every Go target depends on it
 make desktop         # Fyne tray app; Linux needs libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev; windows build adds -H=windowsgui
 make apk             # expo prebuild + gradle → dist/pc-control-client.apk
 make preflight       # host checks; run before blaming code
 make test-phone      # preflight + fake-phone + log review
-go build -tags pcinput ./...   # always pass the tag; without it there is no backend
+go build -tags "pcinput webui" ./...   # pcinput: native backend; webui: embedded browser client
 docker compose up -d --build   # Linux only; pass WAYLAND_DISPLAY/XDG_RUNTIME_DIR from the shell
 ```
 
@@ -55,6 +58,7 @@ Client: `pnpm`, not npm. Expo Go does not work (native `react-native-zeroconf`).
 - `platform_macos.c` compiles in CI on `macos-latest`; there is no macOS SDK on the dev machine. Syntax-check locally with a stub header if needed. `PC_KEY_ALT` is Command on macOS on purpose (Alt+Tab bar → Cmd+Tab).
 - `golang.org/x/net` must stay recent; the 2020 version fails to link on darwin with Go 1.24.
 - `.env` values may contain spaces unquoted (`PC_NAME=My PC`). Shell scripts parse it line by line, never `source` it.
+- Testing the web client in a browser on the same PC creates a feedback loop: the server presses Enter into the focused browser, which re-triggers the focused button. Buttons that send keys are `focusable={false}`; still, prefer a phone or watch `keylog.py` (it now picks the newest pcinput device; `KEYLOG_DEV` overrides).
 - Docker image sets `PCINPUT_BACKEND=linux-uinput`, has `wl-copy` and `xclip`.
 
 ## Conventions

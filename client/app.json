@@ -64,6 +64,14 @@
         "projectId": "db12a56e-3e01-40e1-9600-f54cb2a02936"
       }
     },
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./public/icon-192.png",
+      "name": "PC Control",
+      "themeColor": "#2b6cf0",
+      "backgroundColor": "#2b6cf0"
+    }
   }
 }

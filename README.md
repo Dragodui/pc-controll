@@ -27,14 +27,14 @@ Everything is a single static file per platform; the C backend is compiled in.
 ### Desktop app
 
 `pc-control-desktop` wraps the same server in a tray icon and a window: PC name, port, password, Start/Stop,
-"start server when the app opens", "launch at login", the addresses to enter on the phone, connected phones, and a log.
+"start server when the app opens", "open at startup", the addresses to enter on the phone, connected phones, and a log.
 Settings live in `config.json` under the OS config directory (`~/.config/pc-control`, `~/Library/Application Support/pc-control`, `%AppData%\pc-control`).
 On first run it imports a `.env` next to the executable if there is one. `--hidden` starts minimized to the tray (used by autostart).
 Only one instance runs: launching it again brings the existing window to the front.
 
 Linux, from source: `cd server && make install` puts the binary in `~/.local/bin`, adds a launcher entry
 ("PC Control") and the icon. `make uninstall` removes them. From a release download, copy the binary to
-`~/.local/bin/pc-control-desktop` and run it once; enable "Open at login" in the window.
+`~/.local/bin/pc-control-desktop` and run it once; enable "Open at startup" in the window.
 
 ### CLI server
 
@@ -149,6 +149,19 @@ python3 scripts/keylog.py                    # prints the raw events the virtual
 ```
 
 `fake-phone.js` moves the cursor, scrolls, clicks and types on the real screen; focus a text editor first.
+
+## Browser client (no install)
+
+Every server and desktop binary embeds a web build of the client. On the phone, open the address the
+desktop app shows (for example `http://192.168.0.206:1212`) in a browser: the PC is listed as "This PC",
+enter the password and control it. Works on iPhone and anything else with a browser.
+
+"Add to Home screen" gives an icon. Full PWA mode (standalone window, offline shell) needs a secure
+context, which a plain `http://` LAN address is not; the manifest and service worker are in place for
+setups behind HTTPS. mDNS discovery is not available in browsers; the search button scans the subnet.
+
+`make web` rebuilds it (`expo export -p web` → `server/internal/webui/dist`); the Go build tag `webui`
+embeds it and the Makefile sets it. Without the tag the server serves a placeholder page.
 
 ## Client (Android / iOS)
 
