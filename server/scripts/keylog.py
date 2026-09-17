@@ -4,15 +4,20 @@
 # Usage: python3 scripts/keylog.py [seconds]
 import struct, sys, time, re, os
 
-dev = None
+# Several servers (desktop app + a test instance) each create a device; watch the newest.
+devs = []
 with open("/proc/bus/input/devices") as f:
     block = ""
     for line in f:
         block = "" if line.strip() == "" else block + line
         if "pcinput virtual input" in block and (m := re.search(r"event\d+", block)):
-            dev = "/dev/input/" + m.group(); break
-if not dev:
+            if "/dev/input/" + m.group() not in devs:
+                devs.append("/dev/input/" + m.group())
+if not devs:
     sys.exit("pcinput virtual input device not found")
+dev = os.environ.get("KEYLOG_DEV") or devs[-1]
+if len(devs) > 1:
+    print(f"{len(devs)} pcinput devices: {' '.join(devs)} (KEYLOG_DEV to pick)", flush=True)
 
 NAMES = {1:"ESC",2:"1",3:"2",4:"3",5:"4",6:"5",7:"6",8:"7",9:"8",10:"9",11:"0",12:"-",13:"=",14:"BACKSPACE",15:"TAB",
  16:"q",17:"w",18:"e",19:"r",20:"t",21:"y",22:"u",23:"i",24:"o",25:"p",26:"[",27:"]",28:"ENTER",29:"LCTRL",

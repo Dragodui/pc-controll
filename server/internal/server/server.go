@@ -21,6 +21,7 @@ import (
 	"github.com/Dragodui/pc-controll/internal/events"
 	"github.com/Dragodui/pc-controll/internal/input"
 	"github.com/Dragodui/pc-controll/internal/web"
+	"github.com/Dragodui/pc-controll/internal/webui"
 )
 
 type Options struct {
@@ -65,6 +66,7 @@ func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handler.HandleWS)
 	mux.HandleFunc("/health", s.handler.HandleHealth)
+	mux.Handle("/", webui.Handler())
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.opts.Port),

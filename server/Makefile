@@ -19,10 +19,12 @@ BIN     := pc-control-server
 DBIN    := pc-control-desktop
 DPKG    := ./cmd/desktop
 DIST    := dist
-TAGS    := pcinput
+# webui embeds the browser client from internal/webui/dist (built by `make web`).
+TAGS    := pcinput webui
 LDFLAGS := -s -w
 PKG     := ./cmd
 SRC     := $(shell find cmd internal native -type f -name '*.go' -o -name '*.c' -o -name '*.h') go.mod go.sum
+WEBUI   := internal/webui/dist/index.html
 
 MINGW := x86_64-w64-mingw32-gcc
 
@@ -30,7 +32,7 @@ CLIENT      := ../client
 ANDROID_DIR := $(CLIENT)/android
 APK_OUT     := $(ANDROID_DIR)/app/build/outputs/apk/release/app-release.apk
 
-.PHONY: build all linux windows darwin desktop desktop-linux desktop-windows desktop-darwin apk apk-eas icons clean clean-apk test-phone preflight install-uinput install uninstall
+.PHONY: web build all linux windows darwin desktop desktop-linux desktop-windows desktop-darwin apk apk-eas icons clean clean-apk test-phone preflight install-uinput install uninstall
 
 build: $(DIST)/$(BIN)
 
@@ -43,19 +45,27 @@ darwin:  $(DIST)/$(BIN)-darwin-arm64
 $(DIST):
 	mkdir -p $(DIST)
 
-$(DIST)/$(BIN): $(SRC) | $(DIST)
-	CGO_ENABLED=1 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+# --- Browser client (PWA) ---------------------------------------------------
+# expo export -> client/dist -> internal/webui/dist, embedded by every server/desktop target.
+web: $(WEBUI)
 
-$(DIST)/$(BIN)-linux-amd64: $(SRC) | $(DIST)
-	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+$(WEBUI): $(CLIENT)/node_modules $(shell find $(CLIENT)/app $(CLIENT)/public $(CLIENT)/App.jsx $(CLIENT)/index.js $(CLIENT)/app.json -type f 2>/dev/null)
+	cd $(CLIENT) && CI=1 npx expo export -p web
+	rm -rf internal/webui/dist && cp -r $(CLIENT)/dist internal/webui/dist
 
-$(DIST)/$(BIN)-windows-amd64.exe: $(SRC) | $(DIST)
+$(DIST)/$(BIN): $(SRC) $(WEBUI) | $(DIST)
+	CGO_ENABLED=1 go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+
+$(DIST)/$(BIN)-linux-amd64: $(SRC) $(WEBUI) | $(DIST)
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+
+$(DIST)/$(BIN)-windows-amd64.exe: $(SRC) $(WEBUI) | $(DIST)
 	@command -v $(MINGW) >/dev/null || { echo "missing $(MINGW): install mingw-w64-gcc"; exit 1; }
-	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$(MINGW) go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$(MINGW) go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(PKG)
 
 # Cross-compiling to macOS needs osxcross; simplest is to run this target on a Mac.
-$(DIST)/$(BIN)-darwin-arm64: $(SRC) | $(DIST)
-	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(PKG)
+$(DIST)/$(BIN)-darwin-arm64: $(SRC) $(WEBUI) | $(DIST)
+	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(PKG)
 
 # --- Desktop (Fyne tray app) ---------------------------------------------
 # Linux build needs GL/X11 headers: mesa + libx11/libxcursor/libxrandr/libxinerama/libxi (Debian: libgl1-mesa-dev xorg-dev).
@@ -65,19 +75,19 @@ desktop-linux:   $(DIST)/$(DBIN)-linux-amd64
 desktop-windows: $(DIST)/$(DBIN)-windows-amd64.exe
 desktop-darwin:  $(DIST)/$(DBIN)-darwin-arm64
 
-$(DIST)/$(DBIN): $(SRC) | $(DIST)
-	CGO_ENABLED=1 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
+$(DIST)/$(DBIN): $(SRC) $(WEBUI) | $(DIST)
+	CGO_ENABLED=1 go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
 
-$(DIST)/$(DBIN)-linux-amd64: $(SRC) | $(DIST)
-	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
+$(DIST)/$(DBIN)-linux-amd64: $(SRC) $(WEBUI) | $(DIST)
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
 
 # -H=windowsgui: no console window behind the tray app.
-$(DIST)/$(DBIN)-windows-amd64.exe: $(SRC) | $(DIST)
+$(DIST)/$(DBIN)-windows-amd64.exe: $(SRC) $(WEBUI) | $(DIST)
 	@command -v $(MINGW) >/dev/null || { echo "missing $(MINGW): install mingw-w64-gcc"; exit 1; }
-	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$(MINGW) go build -tags $(TAGS) -ldflags="$(LDFLAGS) -H=windowsgui" -o $@ $(DPKG)
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$(MINGW) go build -tags "$(TAGS)" -ldflags="$(LDFLAGS) -H=windowsgui" -o $@ $(DPKG)
 
-$(DIST)/$(DBIN)-darwin-arm64: $(SRC) | $(DIST)
-	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags $(TAGS) -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
+$(DIST)/$(DBIN)-darwin-arm64: $(SRC) $(WEBUI) | $(DIST)
+	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags "$(TAGS)" -ldflags="$(LDFLAGS)" -o $@ $(DPKG)
 
 # --- Android client -------------------------------------------------------
 # expo prebuild generates $(ANDROID_DIR) (gitignored), then Gradle builds a
