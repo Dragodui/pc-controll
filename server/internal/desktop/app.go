@@ -2,7 +2,11 @@
 package desktop
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/color"
+	_ "image/png"
 	"strconv"
 	"strings"
 
@@ -19,9 +23,13 @@ import (
 	"github.com/Dragodui/pc-controll/internal/appconfig"
 	"github.com/Dragodui/pc-controll/internal/desktop/assets"
 	"github.com/Dragodui/pc-controll/internal/server"
+	"github.com/Dragodui/pc-controll/internal/webui"
 )
 
-const appID = "com.aksandr.pccontrol"
+const (
+	appID         = "com.aksandr.pccontrol"
+	qrColumnWidth = 400
+)
 
 type ui struct {
 	app  fyne.App
@@ -34,6 +42,7 @@ type ui struct {
 	subtitle *canvas.Text
 
 	address        *canvas.Text
+	qr             *canvas.Image
 	sharedPassword *canvas.Text
 	revealed       bool
 
@@ -72,7 +81,7 @@ func Run(hidden bool) error {
 	u.app.SetIcon(assets.Icon)
 	u.win = u.app.NewWindow("PC Control")
 	u.win.SetIcon(assets.Icon)
-	u.win.Resize(fyne.NewSize(420, 520))
+	u.win.Resize(fyne.NewSize(880, 600))
 	u.win.SetContent(u.build())
 	// Closing the window keeps the server running in the tray; Quit is in the tray menu.
 	u.win.SetCloseIntercept(u.win.Hide)
@@ -139,6 +148,20 @@ func (u *ui) build() fyne.CanvasObject {
 		row("Password", container.NewHBox(u.sharedPassword, eye)),
 	)
 
+	// Right column: QR of http://<ip>:<port>/. Scanning it with the phone
+	// camera opens the browser client.
+	u.qr = canvas.NewImageFromImage(nil)
+	u.qr.FillMode = canvas.ImageFillContain
+	qrBox := canvas.NewRectangle(color.White)
+	qrBox.CornerRadius = groupRadius
+	qrCard := container.NewGridWrap(fyne.NewSize(qrColumnWidth, qrColumnWidth),
+		container.NewStack(qrBox, container.New(layout.NewCustomPaddedLayout(10, 10, 10, 10), u.qr)))
+	qrColumn := container.NewVBox(
+		sectionHeader("Scan with your phone"),
+		qrCard,
+		container.New(layout.NewCustomPaddedLayout(8, 0, 4, 0), secondaryText("Opens the control page in the browser, no app needed")),
+	)
+
 	// Settings.
 	var nameBox, portBox, passBox fyne.CanvasObject
 	u.name, nameBox = inlineEntry(160, false)
@@ -196,7 +219,7 @@ func (u *ui) build() fyne.CanvasObject {
 		}
 	})
 
-	content := container.NewVBox(
+	left := container.NewVBox(
 		header,
 		sectionHeader("Connect from your phone"), connect,
 		sectionHeader("Settings"), settings,
@@ -204,7 +227,11 @@ func (u *ui) build() fyne.CanvasObject {
 		container.New(layout.NewCustomPaddedLayout(groupGap, 0, 0, 0), showLog),
 		u.logBox,
 	)
-	padded := container.New(layout.NewCustomPaddedLayout(14, 16, 16, 16), content)
+	// Two columns: everything on the left, the QR code on the right.
+	columns := container.NewBorder(nil, nil, nil,
+		container.New(layout.NewCustomPaddedLayout(0, 0, groupGap, 0), qrColumn),
+		left)
+	padded := container.New(layout.NewCustomPaddedLayout(14, 16, 16, 16), columns)
 	return container.NewVScroll(padded)
 }
 
@@ -316,8 +343,15 @@ func (u *ui) refresh() {
 }
 
 func (u *ui) refreshShared() {
-	u.address.Text = fmt.Sprintf("%s:%d", server.PrimaryIPv4(), u.cfg.Port)
+	url := fmt.Sprintf("http://%s:%d/", server.PrimaryIPv4(), u.cfg.Port)
+	u.address.Text = url[len("http://") : len(url)-1]
 	u.address.Refresh()
+	if png, err := webui.QRPNG(url, 512); err == nil {
+		if img, _, err := image.Decode(bytes.NewReader(png)); err == nil {
+			u.qr.Image = img
+			u.qr.Refresh()
+		}
+	}
 	if u.revealed {
 		u.sharedPassword.Text = u.cfg.Password
 	} else {

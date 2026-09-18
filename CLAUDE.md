@@ -10,7 +10,7 @@ Remote control of a PC from a phone. Go server + native C input backend (`server
 - `server/internal/events` — event kinds + nil-safe `Handler.Emit`.
 - `server/internal/appconfig` — desktop settings as JSON in `os.UserConfigDir()/pc-control/config.json`; first run imports `.env`.
 - `server/internal/desktop` — Fyne UI; `instance.go` is the single-instance socket (`$XDG_RUNTIME_DIR/pc-control-desktop.sock`, tcp 47812 on Windows): `app.go` (window), `theme.go` (palette from the macOS-style design, light/dark tokens), `widgets.go` (toggle switch, grouped rows with hairlines, section headers), `controller.go` (server lifecycle + log ring), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`. Design source: a Claude Design export; keep new UI inside the row/group vocabulary.
-- `server/internal/webui` — serves the embedded browser client at `/` (build tag `webui`, `dist/` copied there by `make web`, gitignored); placeholder page without the tag.
+- `server/internal/webui` — serves the embedded browser client at `/` (build tag `webui`, `dist/` copied there by `make web`, gitignored); placeholder page without the tag. `qr.go`: `/qr.png` and `QRPNG()` for the window (`skip2/go-qrcode`).
 - `client/app/discovery.js` / `discovery.web.js` — platform split: mDNS on native, `hostDevice()` from `location.host` on web. `client/public/` holds `manifest.json`, `sw.js`, PWA icons.
 - `server/internal/web` — WS handler: JSON `protocol.Command` → `input.Backend` calls. Token checked per message.
 - `server/internal/input` — Go `Backend` interface; `cbackend.go` is the cgo bridge (build tag `cgo && pcinput`), `cbackend_disabled.go` the fallback. `pcinput_bridge.c` `#include`s every C source so cgo compiles them in one unit.
@@ -50,7 +50,7 @@ Client: `pnpm`, not npm. Expo Go does not work (native `react-native-zeroconf`).
 
 - Never emit an event while holding a mutex that the handler may re-enter: `server.Start` and `desktop.controller.start` unlock before `Emit`, because the UI handler calls back into `Running()`/`Clients()`. Two deadlocks came from this.
 - UI updates from goroutines go through `fyne.Do`; before `app.Run()` on the main goroutine it executes inline.
-- Test the desktop app in isolation with `XDG_CONFIG_HOME=<tmp> WS_PORT=1515 ./dist/pc-control-desktop`; on niri use `niri msg windows` + `grim` for a screenshot.
+- Test the desktop app in isolation with `XDG_CONFIG_HOME=<tmp> PC_CONTROL_INSTANCE_SOCKET=<tmp>/i.sock WS_PORT=1515 ./dist/pc-control-desktop` (the socket override bypasses the single-instance guard; do not override `XDG_RUNTIME_DIR`, Wayland lives there); for a screenshot without touching the user's screen use the offscreen render: `PCC_RENDER_OUT=/tmp/win.png go test -tags "pcinput webui" ./internal/desktop -run TestRenderWindow` (monospace text measures wrong there; fine in the real window).
 - Linux key codes are QWERTY-ordered, not alphabetical. Never compute `KEY_A + n`; use the table in `platform_linux_uinput.c`.
 - `/dev/uinput` must be group-accessible and `PC_CONTROL_INPUT_GID` in `server/.env` must equal `stat -c %g /dev/uinput`. Wrong gid → `pcinput backend is unavailable ... permission denied`, server still starts with a dead backend. `make install-uinput` fixes it.
 - Firewall blocks the phone silently: no log line at all. `preflight.sh` checks ufw/firewalld.
@@ -58,6 +58,7 @@ Client: `pnpm`, not npm. Expo Go does not work (native `react-native-zeroconf`).
 - `platform_macos.c` compiles in CI on `macos-latest`; there is no macOS SDK on the dev machine. Syntax-check locally with a stub header if needed. `PC_KEY_ALT` is Command on macOS on purpose (Alt+Tab bar → Cmd+Tab).
 - `golang.org/x/net` must stay recent; the 2020 version fails to link on darwin with Go 1.24.
 - `.env` values may contain spaces unquoted (`PC_NAME=My PC`). Shell scripts parse it line by line, never `source` it.
+- Autostart entries store the path of the binary that enabled them. Testing from `dist/` and toggling "Open at startup" points autostart at `dist/`; `make install` re-registers it to `~/.local/bin`.
 - Testing the web client in a browser on the same PC creates a feedback loop: the server presses Enter into the focused browser, which re-triggers the focused button. Buttons that send keys are `focusable={false}`; still, prefer a phone or watch `keylog.py` (it now picks the newest pcinput device; `KEYLOG_DEV` overrides).
 - Docker image sets `PCINPUT_BACKEND=linux-uinput`, has `wl-copy` and `xclip`.
 

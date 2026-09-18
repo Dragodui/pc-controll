@@ -154,17 +154,21 @@ func rowText(text string) fyne.CanvasObject {
 	return container.New(&fixedHeight{h: rowHeight, pad: rowPadding}, container.NewBorder(nil, nil, t, nil))
 }
 
+// hairline is the 1px separator between rows, inset like the row content.
+func hairline() fyne.CanvasObject {
+	line := canvas.NewRectangle(currentPalette().hairline)
+	line.SetMinSize(fyne.NewSize(0, 1))
+	return container.New(layout.NewCustomPaddedLayout(0, 0, rowPadding, 0), line)
+}
+
 // group draws rows on a rounded surface with hairlines between them.
 func group(rows ...fyne.CanvasObject) fyne.CanvasObject {
-	p := currentPalette()
-	bg := canvas.NewRectangle(p.group)
+	bg := canvas.NewRectangle(currentPalette().group)
 	bg.CornerRadius = groupRadius
 	items := make([]fyne.CanvasObject, 0, len(rows)*2)
 	for i, r := range rows {
 		if i > 0 {
-			line := canvas.NewRectangle(p.hairline)
-			line.SetMinSize(fyne.NewSize(0, 1))
-			items = append(items, container.New(layout.NewCustomPaddedLayout(0, 0, rowPadding, 0), line))
+			items = append(items, hairline())
 		}
 		items = append(items, r)
 	}

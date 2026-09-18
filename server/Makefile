@@ -128,6 +128,10 @@ install: $(DIST)/$(DBIN)
 	install -Dm644 scripts/pc-control.desktop $(PREFIX)/share/applications/pc-control.desktop
 	install -Dm644 internal/desktop/assets/icon.png $(PREFIX)/share/icons/hicolor/256x256/apps/pc-control.png
 	-update-desktop-database $(PREFIX)/share/applications 2>/dev/null
+	# Autostart stores the binary's own path; point it at the installed copy if it was enabled.
+	@if [ -f "$${XDG_CONFIG_HOME:-$(HOME)/.config}/autostart/pc-control.desktop" ]; then \
+		$(PREFIX)/bin/$(DBIN) --autostart on; \
+	fi
 	@echo "installed: $(PREFIX)/bin/$(DBIN); find 'PC Control' in your app launcher"
 
 uninstall:

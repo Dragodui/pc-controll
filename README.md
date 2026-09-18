@@ -27,7 +27,8 @@ Everything is a single static file per platform; the C backend is compiled in.
 ### Desktop app
 
 `pc-control-desktop` wraps the same server in a tray icon and a window: PC name, port, password, Start/Stop,
-"start server when the app opens", "open at startup", the addresses to enter on the phone, connected phones, and a log.
+"start server when the app opens", "open at startup", the address to enter on the phone with a QR code for the
+browser client, connected phones, and a log.
 Settings live in `config.json` under the OS config directory (`~/.config/pc-control`, `~/Library/Application Support/pc-control`, `%AppData%\pc-control`).
 On first run it imports a `.env` next to the executable if there is one. `--hidden` starts minimized to the tray (used by autostart).
 Only one instance runs: launching it again brings the existing window to the front.
@@ -159,6 +160,9 @@ enter the password and control it. Works on iPhone and anything else with a brow
 "Add to Home screen" gives an icon. Full PWA mode (standalone window, offline shell) needs a secure
 context, which a plain `http://` LAN address is not; the manifest and service worker are in place for
 setups behind HTTPS. mDNS discovery is not available in browsers; the search button scans the subnet.
+
+The desktop window shows a QR code of that address; the server also serves it at `/qr.png`
+(`?size=` 64–1024). Scan it with the phone camera to open the control page.
 
 `make web` rebuilds it (`expo export -p web` → `server/internal/webui/dist`); the Go build tag `webui`
 embeds it and the Makefile sets it. Without the tag the server serves a placeholder page.
