@@ -66,6 +66,9 @@ func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handler.HandleWS)
 	mux.HandleFunc("/health", s.handler.HandleHealth)
+	mux.Handle("/qr.png", webui.QRHandler(func(r *http.Request) string {
+		return fmt.Sprintf("http://%s:%d/", PrimaryIPv4(), s.opts.Port)
+	}))
 	mux.Handle("/", webui.Handler())
 
 	httpServer := &http.Server{

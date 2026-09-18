@@ -14,6 +14,10 @@ import (
 const showCommand = "show\n"
 
 func instanceAddr() (network, addr string) {
+	// Test hook: run a second, independent instance.
+	if p := os.Getenv("PC_CONTROL_INSTANCE_SOCKET"); p != "" {
+		return "unix", p
+	}
 	if runtime.GOOS == "windows" {
 		return "tcp", "127.0.0.1:47812"
 	}
