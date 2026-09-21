@@ -1,4 +1,4 @@
-package web
+package wsapi
 
 import (
 	"encoding/json"
