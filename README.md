@@ -162,7 +162,10 @@ context, which a plain `http://` LAN address is not; the manifest and service wo
 setups behind HTTPS. mDNS discovery is not available in browsers; the search button scans the subnet.
 
 The desktop window shows a QR code of that address; the server also serves it at `/qr.png`
-(`?size=` 64–1024). Scan it with the phone camera to open the control page.
+(`?size=` 64–1024). Scanning it with the phone camera opens the control page **already connected**:
+the code carries the password as `?pass=`, and the client removes it from the address bar as soon as it
+reads it. Anyone who can see the screen can connect, the same trust level as reading the password off
+the window.
 
 `make web` rebuilds it (`expo export -p web` → `server/internal/webui/dist`); the Go build tag `webui`
 embeds it and the Makefile sets it. Without the tag the server serves a placeholder page.
