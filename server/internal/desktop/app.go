@@ -343,10 +343,11 @@ func (u *ui) refresh() {
 }
 
 func (u *ui) refreshShared() {
-	url := fmt.Sprintf("http://%s:%d/", server.PrimaryIPv4(), u.cfg.Port)
-	u.address.Text = url[len("http://") : len(url)-1]
+	ip := server.PrimaryIPv4()
+	u.address.Text = fmt.Sprintf("%s:%d", ip, u.cfg.Port)
 	u.address.Refresh()
-	if png, err := webui.QRPNG(url, 512); err == nil {
+	// The QR carries the password so a scan connects without typing.
+	if png, err := webui.QRPNG(server.ClientURL(ip, u.cfg.Port, u.cfg.Password), 512); err == nil {
 		if img, _, err := image.Decode(bytes.NewReader(png)); err == nil {
 			u.qr.Image = img
 			u.qr.Refresh()

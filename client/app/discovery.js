@@ -38,3 +38,8 @@ export function mdnsDiscover(timeoutMs = 2000) {
 export function hostDevice() {
   return null;
 }
+
+// Web-only: the password carried by a scanned QR code.
+export function passwordFromURL() {
+  return '';
+}

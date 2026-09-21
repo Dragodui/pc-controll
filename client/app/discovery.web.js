@@ -13,3 +13,18 @@ export function hostDevice() {
   const p = parseInt(port || (protocol === 'https:' ? '443' : '80'), 10);
   return { id: `${hostname}:${p}`, name: 'This PC', ip: hostname, port: p, pass: '', online: true };
 }
+
+// The QR code the server shows carries the password as ?pass=, so scanning it
+// connects without typing. The value is removed from the address bar right
+// away so it does not linger in history or in a shared link.
+export function passwordFromURL() {
+  if (typeof window === 'undefined' || !window.location?.search) return '';
+  const params = new URLSearchParams(window.location.search);
+  const pass = params.get('pass') || '';
+  if (pass) {
+    params.delete('pass');
+    const query = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (query ? `?${query}` : ''));
+  }
+  return pass;
+}

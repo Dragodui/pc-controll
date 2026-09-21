@@ -10,7 +10,7 @@ Remote control of a PC from a phone. Go server + native C input backend (`server
 - `server/internal/events` — event kinds + nil-safe `Handler.Emit`.
 - `server/internal/appconfig` — desktop settings as JSON in `os.UserConfigDir()/pc-control/config.json`; first run imports `.env`.
 - `server/internal/desktop` — Fyne UI; `instance.go` is the single-instance socket (`$XDG_RUNTIME_DIR/pc-control-desktop.sock`, tcp 47812 on Windows): `app.go` (window), `theme.go` (palette from the macOS-style design, light/dark tokens), `widgets.go` (toggle switch, grouped rows with hairlines, section headers), `controller.go` (server lifecycle + log ring), per-OS hints, autostart via `emersion/go-autostart`. Icon embedded from `assets/icon.png`. Design source: a Claude Design export; keep new UI inside the row/group vocabulary.
-- `server/internal/webui` — serves the embedded browser client at `/` (build tag `webui`, `dist/` copied there by `make web`, gitignored); placeholder page without the tag. `qr.go`: `/qr.png` and `QRPNG()` for the window (`skip2/go-qrcode`).
+- `server/internal/webui` — serves the embedded browser client at `/` (build tag `webui`, `dist/` copied there by `make web`, gitignored); placeholder page without the tag. `qr.go`: `/qr.png` and `QRPNG()` for the window (`skip2/go-qrcode`); the encoded URL comes from `server.ClientURL()` and carries `?pass=` so a scan auto-connects.
 - `client/app/discovery.js` / `discovery.web.js` — platform split: mDNS on native, `hostDevice()` from `location.host` on web. `client/public/` holds `manifest.json`, `sw.js`, PWA icons.
 - `server/internal/web` — WS handler: JSON `protocol.Command` → `input.Backend` calls. Token checked per message.
 - `server/internal/input` — Go `Backend` interface; `cbackend.go` is the cgo bridge (build tag `cgo && pcinput`), `cbackend_disabled.go` the fallback. `pcinput_bridge.c` `#include`s every C source so cgo compiles them in one unit.
@@ -59,6 +59,7 @@ Client: `pnpm`, not npm. Expo Go does not work (native `react-native-zeroconf`).
 - `golang.org/x/net` must stay recent; the 2020 version fails to link on darwin with Go 1.24.
 - `.env` values may contain spaces unquoted (`PC_NAME=My PC`). Shell scripts parse it line by line, never `source` it.
 - Autostart entries store the path of the binary that enabled them. Testing from `dist/` and toggling "Open at startup" points autostart at `dist/`; `make install` re-registers it to `~/.local/bin`.
+- Headless check of the web client without the Chrome extension: `google-chrome-stable --headless=new --virtual-time-budget=8000 --screenshot=/tmp/a.png "http://127.0.0.1:<port>/?pass=<pass>"`, then look for `client connected` in the server log.
 - Testing the web client in a browser on the same PC creates a feedback loop: the server presses Enter into the focused browser, which re-triggers the focused button. Buttons that send keys are `focusable={false}`; still, prefer a phone or watch `keylog.py` (it now picks the newest pcinput device; `KEYLOG_DEV` overrides).
 - Docker image sets `PCINPUT_BACKEND=linux-uinput`, has `wl-copy` and `xclip`.
 

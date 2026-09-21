@@ -4,7 +4,7 @@ import { Gesture } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
-import { canDiscover, hostDevice, mdnsDiscover } from './discovery';
+import { canDiscover, hostDevice, mdnsDiscover, passwordFromURL } from './discovery';
 
 const SERVER_PORT = 1212;
 
@@ -99,14 +99,21 @@ export function useRemoteControl() {
     let list = savedDevices ? JSON.parse(savedDevices) : [];
     // Web build: the server that serves this page is a device by definition.
     const host = hostDevice();
-    if (host && !list.some((d) => d.ip === host.ip && d.port === host.port)) {
-      list = [host, ...list];
+    let autoConnect = null;
+    if (host) {
+      const scannedPass = passwordFromURL();
+      const known = list.find((d) => d.ip === host.ip && d.port === host.port);
+      const device = { ...host, ...known, pass: scannedPass || known?.pass || '' };
+      list = [device, ...list.filter((d) => d !== known)];
       await AsyncStorage.setItem('devices', JSON.stringify(list));
+      // Scanned the QR: skip the device list and open the trackpad straight away.
+      if (scannedPass) autoConnect = device;
     }
     if (list.length) {
       setDevices(list);
       checkOnlineStatus(list);
     }
+    if (autoConnect) connectToDevice(autoConnect);
   };
 
   const smartScan = async () => {

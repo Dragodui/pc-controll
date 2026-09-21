@@ -10,8 +10,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -67,7 +69,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/ws", s.handler.HandleWS)
 	mux.HandleFunc("/health", s.handler.HandleHealth)
 	mux.Handle("/qr.png", webui.QRHandler(func(r *http.Request) string {
-		return fmt.Sprintf("http://%s:%d/", PrimaryIPv4(), s.opts.Port)
+		return ClientURL(PrimaryIPv4(), s.opts.Port, s.opts.Password)
 	}))
 	mux.Handle("/", webui.Handler())
 
@@ -160,6 +162,19 @@ func (s *Server) Running() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.http != nil
+}
+
+// ClientURL is what the QR code encodes: the browser client with the password
+// filled in, so scanning it lands on the trackpad without typing. The client
+// strips the query from the address bar as soon as it reads it.
+func ClientURL(host string, port int, password string) string {
+	u := url.URL{
+		Scheme:   "http",
+		Host:     net.JoinHostPort(host, strconv.Itoa(port)),
+		Path:     "/",
+		RawQuery: url.Values{"pass": {password}}.Encode(),
+	}
+	return u.String()
 }
 
 func (s *Server) Clients() []web.Client  { return s.handler.Clients() }
