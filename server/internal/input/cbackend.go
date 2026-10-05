@@ -22,18 +22,6 @@ type CBackend struct{}
 
 var pcinputMu sync.Mutex
 
-type Capabilities struct {
-	MouseMoveRelative bool
-	MouseMoveAbsolute bool
-	MouseClick        bool
-	MouseScroll       bool
-	KeyboardText      bool
-	KeyboardKeys      bool
-	ScreenCapture     bool
-	RequiresUserPerm  bool
-	Degraded          bool
-}
-
 func NewCBackend() (Backend, error) {
 	pcinputMu.Lock()
 	defer pcinputMu.Unlock()
@@ -56,28 +44,6 @@ func (b CBackend) Name() string {
 		name = "unknown"
 	}
 	return "pcinput-" + name
-}
-
-func (b CBackend) Capabilities() (Capabilities, error) {
-	var caps C.pc_caps_t
-
-	pcinputMu.Lock()
-	defer pcinputMu.Unlock()
-
-	if result := C.pc_get_capabilities(&caps); result != C.PCINPUT_OK {
-		return Capabilities{}, pcinputError("get pcinput capabilities", result)
-	}
-	return Capabilities{
-		MouseMoveRelative: caps.mouse_move_relative != 0,
-		MouseMoveAbsolute: caps.mouse_move_absolute != 0,
-		MouseClick:        caps.mouse_click != 0,
-		MouseScroll:       caps.mouse_scroll != 0,
-		KeyboardText:      caps.keyboard_text != 0,
-		KeyboardKeys:      caps.keyboard_keys != 0,
-		ScreenCapture:     caps.screen_capture != 0,
-		RequiresUserPerm:  caps.requires_user_permission != 0,
-		Degraded:          caps.degraded != 0,
-	}, nil
 }
 
 func (b CBackend) Move(dx, dy int) error {

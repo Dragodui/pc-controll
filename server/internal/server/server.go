@@ -22,8 +22,8 @@ import (
 	"github.com/Dragodui/pc-controll/internal/discovery"
 	"github.com/Dragodui/pc-controll/internal/events"
 	"github.com/Dragodui/pc-controll/internal/input"
-	"github.com/Dragodui/pc-controll/internal/web"
 	"github.com/Dragodui/pc-controll/internal/webui"
+	"github.com/Dragodui/pc-controll/internal/wsapi"
 )
 
 type Options struct {
@@ -37,7 +37,7 @@ type Options struct {
 
 type Server struct {
 	opts    Options
-	handler *web.Server
+	handler *wsapi.Server
 
 	mu       sync.Mutex
 	http     *http.Server
@@ -52,7 +52,7 @@ func New(opts Options) *Server {
 	}
 	return &Server{
 		opts:    opts,
-		handler: web.NewServer(opts.Password, opts.Backend, opts.Events),
+		handler: wsapi.NewServer(opts.Password, opts.Backend, opts.Events),
 	}
 }
 
@@ -177,9 +177,8 @@ func ClientURL(host string, port int, password string) string {
 	return u.String()
 }
 
-func (s *Server) Clients() []web.Client  { return s.handler.Clients() }
-func (s *Server) Backend() input.Backend { return s.opts.Backend }
-func (s *Server) Port() int              { return s.opts.Port }
+func (s *Server) Clients() []wsapi.Client { return s.handler.Clients() }
+func (s *Server) Backend() input.Backend  { return s.opts.Backend }
 
 // Run is the CLI entrypoint: load config, start, block until SIGINT/SIGTERM.
 func Run() error {

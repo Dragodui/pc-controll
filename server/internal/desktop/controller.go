@@ -11,7 +11,7 @@ import (
 	"github.com/Dragodui/pc-controll/internal/events"
 	"github.com/Dragodui/pc-controll/internal/input"
 	"github.com/Dragodui/pc-controll/internal/server"
-	"github.com/Dragodui/pc-controll/internal/web"
+	"github.com/Dragodui/pc-controll/internal/wsapi"
 )
 
 const logLines = 200
@@ -36,7 +36,7 @@ func (c *controller) running() bool {
 	return c.srv != nil && c.srv.Running()
 }
 
-func (c *controller) clients() []web.Client {
+func (c *controller) clients() []wsapi.Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.srv == nil {

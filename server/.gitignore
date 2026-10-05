@@ -33,3 +33,7 @@ go.work.sum
 .gocache
 .gocache-*
 dist/
+
+# Editor
+.vscode/
+.idea/
