@@ -11,6 +11,7 @@ A Go server with a native C input backend runs on the computer; an Expo (React N
 - **Alt+Tab bar**: switch windows with haptic feedback (Cmd+Tab on macOS).
 - **Sensitivity**: separate sliders for mouse and scroll speed.
 - **Auto-discovery**: mDNS (`_remotepad._tcp`) and network scan, or enter the IP by hand.
+- **Password check on connect**: a wrong password is reported right away instead of silently ignoring every tap.
 
 ## Quick start
 

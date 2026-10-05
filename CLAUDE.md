@@ -24,7 +24,7 @@ Remote control of a PC from a phone. Go server + native C input backend (`server
 
 ## Protocol
 
-WebSocket JSON: `{type, x, y, key, value, button, token}`. Types: `move`, `scroll`, `click` (button `left|right|middle`), `type_string` (value), `tap`/`key_down`/`key_up` (key `alt|backspace|command|enter|shift|space|tab`). Wrong token → logged, ignored, connection stays open. mDNS service `_remotepad._tcp`.
+WebSocket JSON: `{type, x, y, key, value, button, token}`. Types: `auth` (handshake, no input), `move`, `scroll`, `click` (button `left|right|middle`), `type_string` (value), `tap`/`key_down`/`key_up` (key `alt|backspace|command|enter|shift|space|tab`). The token is checked on every message; the first accepted one makes the socket a listed client and gets `{"type":"auth_ok"}` back. A wrong token gets `{"type":"auth_error"}` and the server closes the socket, so clients can report it and guessing costs a reconnect. mDNS service `_remotepad._tcp`.
 
 ## Commands
 
@@ -60,6 +60,9 @@ Client: `pnpm`, not npm. Expo Go does not work (native `react-native-zeroconf`).
 - `.env` values may contain spaces unquoted (`PC_NAME=My PC`). Shell scripts parse it line by line, never `source` it.
 - Autostart entries store the path of the binary that enabled them. Testing from `dist/` and toggling "Open at startup" points autostart at `dist/`; `make install` re-registers it to `~/.local/bin`.
 - Headless check of the web client without the Chrome extension: `google-chrome-stable --headless=new --virtual-time-budget=8000 --screenshot=/tmp/a.png "http://127.0.0.1:<port>/?pass=<pass>"`, then look for `client connected` in the server log.
+- `Alert.alert` is a no-op in react-native-web; use the `notify()` helper in `useRemoteControl.js`, which falls back to `window.alert`.
+- Suppressing `make web` output (`| tail -0`) hides an expo failure and leaves a stale bundle embedded in the binary; check `grep -c <new symbol> internal/webui/dist/_expo/static/js/web/*.js` after changing the client.
+- `pkill -f "pc-control-server"` from a shell whose own command line contains that string kills the shell too; match the running copy with `pgrep -f "[s]rv/..."` or run test servers in their own directory and port.
 - Testing the web client in a browser on the same PC creates a feedback loop: the server presses Enter into the focused browser, which re-triggers the focused button. Buttons that send keys are `focusable={false}`; still, prefer a phone or watch `keylog.py` (it now picks the newest pcinput device; `KEYLOG_DEV` overrides).
 - Docker image sets `PCINPUT_BACKEND=linux-uinput`, has `wl-copy` and `xclip`.
 
