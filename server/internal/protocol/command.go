@@ -9,3 +9,17 @@ type Command struct {
 	Token  string  `json:"token"`
 	Button string  `json:"button"`
 }
+
+// Reply types the server sends back over the same socket. Clients wait for
+// AuthOK before showing the trackpad, so a wrong password is visible at once
+// instead of silently dropping every command.
+const (
+	TypeAuth      = "auth"
+	TypeAuthOK    = "auth_ok"
+	TypeAuthError = "auth_error"
+)
+
+type Reply struct {
+	Type    string `json:"type"`
+	Message string `json:"message,omitempty"`
+}

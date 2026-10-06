@@ -79,12 +79,14 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	addr := r.RemoteAddr
-	s.addClient(addr)
+	authenticated := false
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			s.removeClient(addr, err)
+			if authenticated {
+				s.removeClient(addr, err)
+			}
 			break
 		}
 
@@ -92,14 +94,35 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(message, &cmd); err != nil {
 			continue
 		}
+		// A wrong password ends the connection: the client can report it, and
+		// guessing costs a reconnect per attempt.
 		if cmd.Token != s.serverPassword {
-			s.emit.Emit(events.AuthFailed, addr, "access denied: invalid token")
+			s.emit.Emit(events.AuthFailed, addr, "access denied: invalid password")
+			s.reply(conn, protocol.Reply{Type: protocol.TypeAuthError, Message: "invalid password"})
+			break
+		}
+		if !authenticated {
+			authenticated = true
+			s.addClient(addr)
+			s.reply(conn, protocol.Reply{Type: protocol.TypeAuthOK})
+		}
+		if cmd.Type == protocol.TypeAuth {
 			continue
 		}
 		if err := s.executeCommand(cmd); err != nil {
 			s.emit.Emit(events.InputError, addr, fmt.Sprintf("input command failed [%s via %s]: %v", cmd.Type, s.backend.Name(), err))
 		}
 	}
+}
+
+func (s *Server) reply(conn *websocket.Conn, msg protocol.Reply) {
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	conn.WriteMessage(websocket.TextMessage, payload)
+	conn.SetWriteDeadline(time.Time{})
 }
 
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
